@@ -23,7 +23,6 @@ export async function commandWorker(input: {
   deviceId: string;
   instanceId: string;
   action: "start" | "stop" | "close";
-  jobIds?: string[];
 }): Promise<WorkerCommandResult> {
   noStore();
   const admin = await requireRole("ADMIN");

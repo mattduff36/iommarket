@@ -25,17 +25,10 @@ describe("token-only desktop bootstrap", () => {
       NODE_OPTIONS: "--require private", NODE_EXTRA_CA_CERTS: "private",
       HTTP_PROXY: "private", HTTPS_PROXY: "private", DATABASE_URL: "private",
       IMAGEKIT_PRIVATE_KEY: "private", DEALER_STOCK_DESKTOP_CONFIG_JSON: "private",
-    }, "C:/installed/runtime/node.exe", "win32");
+    }, "C:/installed/runtime/node.exe");
     expect(env.TEMP).toBe("C:/Temp"); expect(env.NODE_ENV).toBe("production");
     expect(env.PATH).toContain("installed/runtime");
     expect(JSON.stringify(env)).not.toMatch(/private|untrusted|DATABASE|IMAGEKIT|HTTP_PROXY|NODE_OPTIONS/);
-  });
-  it("isolates Linux children and permits only local Xvfb settings", () => {
-    const env = desktopRuntimeEnvironment({ PATH: "/unsafe", NODE_OPTIONS: "unsafe", DATABASE_URL: "unsafe",
-      DISPLAY: ":99", XAUTHORITY: "/tmp/xvfb-run.X123/Xauthority" }, "/opt/node/bin/node", "linux");
-    expect(env).toEqual({ NODE_ENV: "production", PATH: "/opt/node/bin:/usr/bin:/bin", DISPLAY: ":99",
-      XAUTHORITY: "/tmp/xvfb-run.X123/Xauthority" });
-    expect(desktopRuntimeEnvironment({DISPLAY:"host:99", XAUTHORITY:"/etc/passwd"}, "/opt/node", "linux").DISPLAY).toBeUndefined();
   });
   it("reads one strict UTF-8 bounded newline frame and keeps the safe-stop pipe open", async () => {
     const pipe = new PassThrough(); const read = readDesktopBootstrap(pipe);

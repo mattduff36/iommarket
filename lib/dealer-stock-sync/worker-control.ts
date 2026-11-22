@@ -1,4 +1,3 @@
-import { launchJobIds } from "./desktop-launch-store";
 import { z } from "zod";
 import {
   browserOriginAllowed,
@@ -43,7 +42,6 @@ const DEVICE_ID = /^dev_[A-Za-z0-9_-]{22}$/;
 const DEVICE_NAME = /^[\p{L}\p{N}][\p{L}\p{N} ._()'-]{0,63}$/u;
 
 export const WORKER_ACTIVITY_TEXT: Record<WorkerActivityCode, string> = {
-  "vm-busy": "The other administrator is using the VM. Your jobs remain queued. Start them again when it is free.",
   checking: "Checking authorisation and the installed runtime",
   ready: "Worker ready to process queued jobs",
   waiting: "Waiting for queued work",
@@ -57,14 +55,12 @@ export const WORKER_ACTIVITY_TEXT: Record<WorkerActivityCode, string> = {
 };
 
 export interface WorkerCommandView {
-  jobIds?: string[];
   id: string;
   instanceId: string;
   action: WorkerCommandAction;
 }
 
 export interface WorkerDashboardDevice {
-  scopedVm?: boolean;
   launchId?: string;
   deviceId: string;
   deviceName: string;
@@ -83,7 +79,6 @@ export interface WorkerControlDependencies {
   desktop: DesktopDependencies;
   control: WorkerControlStore;
   randomUUID: () => string;
-  jobsOwned?: (adminId: string, jobIds: string[]) => Promise<boolean>;
 }
 
 export interface WorkerControlFailure {
@@ -113,7 +108,7 @@ function failure(status: WorkerControlFailure["status"], error: WorkerControlFai
 }
 
 function commandView(command: WorkerCommandRecord): WorkerCommandView {
-  return { id: command.id, instanceId: command.instanceId, action: command.action, ...(command.jobIds ? { jobIds: command.jobIds } : {}) };
+  return { id: command.id, instanceId: command.instanceId, action: command.action };
 }
 
 function isoTimestamp(value: string, nowMs: number): boolean {
@@ -155,7 +150,6 @@ const commandBody = z.object({
   deviceId: z.string().regex(DEVICE_ID),
   instanceId: uuid,
   action: z.enum(["start", "stop", "close"]),
-  jobIds: launchJobIds.optional(),
 }).strict();
 
 function gateOf(deps: WorkerControlDependencies) {
@@ -215,7 +209,6 @@ async function ownedDevices(
 
 function offlineDevice(device: DeviceRecord): WorkerDashboardDevice {
   return {
-    ...(device.scopedVm === true ? { scopedVm: true } : {}),
     deviceId: device.deviceId,
     deviceName: device.deviceName,
     environment: device.environment,
@@ -297,7 +290,6 @@ export async function readWorkerDashboard(
         ? commandView(snapshot.command)
         : null;
       rows.push({
-        ...(device.scopedVm === true ? { scopedVm: true } : {}),
         deviceId: device.deviceId,
         deviceName: device.deviceName,
         environment: device.environment,
@@ -344,22 +336,11 @@ export async function commandWorkerDevice(
     WORKER_COMMAND_RATE_WINDOW_SECONDS,
   );
   if (limited) return { ok: false, error: limited.error === "rate_limited" ? "rate_limited" : "unavailable" };
-  const vm = owned.scopedVm === true;
-  const ids = parsed.data.jobIds;
-  if (vm && gate.environment !== "preview") return { ok: false, error: "forbidden" };
-  if (Boolean(ids) !== (vm && parsed.data.action === "start")) return { ok: false, error: "invalid_request" };
-  if (ids) {
-    try {
-      if (!deps.jobsOwned) return { ok: false, error: "unavailable" };
-      if (!await deps.jobsOwned(input.adminId, ids)) return { ok: false, error: "conflict" };
-    } catch { return { ok: false, error: "unavailable" }; }
-  }
   const nowMs = deps.now();
   const command: WorkerCommandRecord = {
     id: deps.randomUUID(),
     instanceId: parsed.data.instanceId,
     action: parsed.data.action,
-    ...(ids ? { jobIds: ids } : {}),
   };
   if (!UUID.test(command.id)) return { ok: false, error: "unavailable" };
   try {
@@ -388,10 +369,6 @@ export function createWorkerControlDependencies(
     desktop: liveDesktopDependencies(env),
     control: gate.ok ? createLiveWorkerControlStore(env, environment) : unavailableWorkerControlStore(),
     randomUUID: () => crypto.randomUUID(),
-    async jobsOwned(adminId, ids) {
-      const { liveLaunchDependencies } = await import("./desktop-launch");
-      return liveLaunchDependencies().jobsOwned(adminId, ids);
-    },
   };
 }
 

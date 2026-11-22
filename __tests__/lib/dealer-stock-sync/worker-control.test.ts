@@ -84,11 +84,11 @@ function heartbeatBody(nowMs: number, overrides: Record<string, unknown> = {}) {
   };
 }
 
-async function issue(desktop: DesktopDependencies, deviceName = "Front Desk", clientVersion = "1.2.0") {
+async function issue(desktop: DesktopDependencies) {
   const secret = randomBytes(32).toString("base64url");
   const challenge = createHash("sha256").update(secret).digest("base64url");
   const started = await post(desktop, {
-    op: "begin", deviceName, codeChallenge: challenge, environment: "preview", clientVersion,
+    op: "begin", deviceName: "Front Desk", codeChallenge: challenge, environment: "preview", clientVersion: "1.2.0",
   });
   if (!started.ok) throw new Error("pairing did not start");
   const approved = await approveDesktopDevice(desktop, {
@@ -113,21 +113,6 @@ function presence(instanceId: string, seen: number): WorkerPresenceRecord {
 }
 
 describe("worker presence and control", () => {
-  it("delivers only an explicitly scoped, owned Preview VM task to its paired instance", async () => {
-    const { deps, now } = harness();
-    const session = await issue(deps.desktop, "Oracle Stock Update VM", "1.1.15-linux.1");
-    const beat = () => handleWorkerHeartbeat(deps, {body: heartbeatBody(now()), authorization: session.authorization});
-    await beat();
-    const ids = ["cjob000000000000000000001"];
-    const command = { action: "start", deviceId: session.deviceId, instanceId: INSTANCE_A };
-    expect(await commandWorkerDevice(deps,browser(command))).toMatchObject({ok:false,error:"invalid_request"});
-    deps.jobsOwned = async () => false;
-    expect(await commandWorkerDevice(deps,browser({...command,jobIds:ids}))).toMatchObject({ok:false,error:"conflict"});
-    deps.jobsOwned = async (admin, scope) => admin === ADMIN_A && scope[0] === ids[0];
-    expect(await commandWorkerDevice(deps,{...browser({...command,jobIds:ids}),adminId:ADMIN_B})).toMatchObject({ok:false,error:"forbidden"});
-    expect(await commandWorkerDevice(deps,browser({...command,jobIds:ids}))).toMatchObject({ok:true});
-    expect(await beat()).toMatchObject({ok:true,body:{command:{instanceId:INSTANCE_A,action:"start",jobIds:ids}}});
-  });
   it("authenticates every heartbeat, maps safe activity, and keeps commands on one live instance", async () => {
     const { deps, advance, now } = harness();
     const session = await issue(deps.desktop);

@@ -6,8 +6,8 @@ vi.mock("@/app/(admin)/admin/stock-reviews/launch-actions", () => ({ launchStock
 vi.mock("@/app/(admin)/admin/stock-reviews/app-launch-navigation", () => ({ openStockUpdateProtocol: mocks.navigate }));
 import { useStockAppLifecycle } from "@/app/(admin)/admin/stock-reviews/app-lifecycle";
 import type { StockWorkerControl } from "@/app/(admin)/admin/stock-reviews/worker-context";
-function Harness({ online = false, scopedVm = false, target = "device:instance", connectedLaunchId }: { online?: boolean; scopedVm?: boolean; target?: string; connectedLaunchId?: string }) {
-  const controls = { online, scopedVm, target, running: false, pending: false, stopping: false, dispatch: mocks.dispatch } as unknown as StockWorkerControl;
+function Harness({ online = false, target = "device:instance", connectedLaunchId }: { online?: boolean; target?: string; connectedLaunchId?: string }) {
+  const controls = { online, target, running: false, pending: false, stopping: false, dispatch: mocks.dispatch } as unknown as StockWorkerControl;
   const lifecycle = useStockAppLifecycle(controls, connectedLaunchId);
   return <><button onClick={() => void lifecycle.open()}>Open Stock Update</button>{lifecycle.launchFailed && <button>Download app</button>}<button onClick={() => void lifecycle.requestRun(mocks.task)}>Run task</button>{lifecycle.dialog}<p>{lifecycle.message}</p>{lifecycle.launchFallback}</>;
 }
@@ -86,19 +86,4 @@ it("offers download after the connection timeout and hides it on a late connecti
   expect(screen.getByText("Download app")).toBeInTheDocument();
   view.rerender(<Harness online connectedLaunchId="launch-one" />);
   expect(screen.queryByText("Download app")).not.toBeInTheDocument();
-});
-
-it("dispatches only the task IDs to the selected Oracle device without opening a protocol link", async () => {
-  render(<Harness online scopedVm />);
-  fireEvent.click(screen.getByText("Run task"));
-  await waitFor(() => expect(mocks.dispatch).toHaveBeenCalledExactlyOnceWith("start", "device:instance", ["job-one"]));
-  expect(mocks.navigate).not.toHaveBeenCalled();
-});
-
-it("keeps an offline Oracle device selected and never launches the Windows app as a fallback", async () => {
-  render(<Harness scopedVm />);
-  fireEvent.click(screen.getByText("Run task"));
-  await screen.findByText(/selected Oracle VM is offline/);
-  expect(mocks.task).not.toHaveBeenCalled();
-  expect(mocks.navigate).not.toHaveBeenCalled();
 });

@@ -34,8 +34,8 @@ function StandaloneStockAppTasks({ children }: { children: ReactNode }) {
     return () => { stopped = true; clearInterval(timer); document.removeEventListener("visibilitychange", visible); };
   }, []);
   const devices = snapshot?.ok ? snapshot.devices : [];
-  const device = devices.find(row => row.online && row.lastSeenAt && now - Date.parse(row.lastSeenAt) <= 35_000) ?? devices.find(row => row.scopedVm);
-  const controls = useStockWorkerCommands(device, Boolean(device?.online && device.lastSeenAt && now - Date.parse(device.lastSeenAt) <= 35_000), setSnapshot);
+  const device = devices.find(row => row.online && row.lastSeenAt && now - Date.parse(row.lastSeenAt) <= 35_000);
+  const controls = useStockWorkerCommands(device, Boolean(device), setSnapshot);
   const connectedLaunch = devices.filter(row => row.launchId).sort((a, b) => (b.lastSeenAt ?? "").localeCompare(a.lastSeenAt ?? ""))[0]?.launchId;
   const lifecycle = useStockAppLifecycle(controls, connectedLaunch);
   const value = { ...controls, requestRun: snapshot?.ok ? lifecycle.requestRun : undefined,
