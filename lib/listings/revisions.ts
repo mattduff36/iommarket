@@ -100,6 +100,7 @@ export async function getOrCreateDraftRevision(input: {
         data: {
           listingId: listing.id,
           title: listing.title,
+          condition: listing.condition,
           description: listing.description,
           price: listing.price,
           categoryId: listing.categoryId,
@@ -142,6 +143,7 @@ export async function updateDraftRevision(input: {
   expectedListingRevision: number;
   data: {
     title?: string;
+    condition?: "NEW" | "USED";
     description?: string;
     price?: number;
     categoryId?: string;
@@ -379,6 +381,8 @@ export async function approveRevision(input: {
       },
       data: {
         title: revision.title,
+        condition: revision.condition,
+        conditionReviewRequired: false,
         description: revision.description,
         price: revision.price,
         categoryId: revision.categoryId,

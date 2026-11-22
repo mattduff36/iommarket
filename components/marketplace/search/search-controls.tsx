@@ -76,6 +76,7 @@ export function SearchControls({
   const router = useRouter();
   const currentYear = getCurrentYear();
 
+  const [condition, setCondition] = React.useState(initial.condition ?? "");
   const [make, setMake] = React.useState(initial.make ?? "");
   const [model, setModel] = React.useState(initial.model ?? "");
   const [region, setRegion] = React.useState(initial.region ?? "");
@@ -113,6 +114,7 @@ export function SearchControls({
     makeRef.current = "";
     modelRef.current = "";
     setMake("");
+    setCondition("");
     setModel("");
     setAdvancedParams((current) =>
       scopeCategorySearchRecord(
@@ -131,6 +133,7 @@ export function SearchControls({
     const nextMake = initial.make ?? "";
     makeRef.current = nextMake;
     modelRef.current = initial.model ?? "";
+    setCondition(initial.condition ?? "");
     setMake(nextMake);
     setModel(initial.model ?? "");
     setRegion(initial.region ?? "");
@@ -140,7 +143,7 @@ export function SearchControls({
     );
     setYearRange(parseYearRange(initial.minYear, initial.maxYear));
   }, [
-    initial.make, initial.model, initial.region,
+    initial.condition, initial.make, initial.model, initial.region,
     initial.minPrice, initial.maxPrice, initial.minMileage, initial.maxMileage,
     initial.minYear, initial.maxYear,
   ]);
@@ -163,6 +166,7 @@ export function SearchControls({
   function getAllParams(): SearchParams {
     return {
       ...advancedParams,
+      condition: condition || undefined,
       ...(category ? { category } : {}),
       make: make || undefined,
       model: model || undefined,
@@ -261,6 +265,7 @@ export function SearchControls({
     setAdvancedParams(scoped);
     makeRef.current = scoped.make ?? "";
     modelRef.current = scoped.model ?? "";
+    setCondition(scoped.condition ?? "");
     setMake(scoped.make ?? "");
     setModel(scoped.model ?? "");
     setRegion(scoped.region ?? "");
@@ -277,6 +282,7 @@ export function SearchControls({
     makeRef.current = "";
     modelRef.current = "";
     setMake("");
+    setCondition("");
     setModel("");
     setRegion("");
     setPriceRange([PRICE_MIN, PRICE_MAX]);
@@ -296,6 +302,14 @@ export function SearchControls({
     <div className={cn("space-y-4", className)}>
       {/* ---- PRIMARY ROW ---- */}
       <form onSubmit={handleSubmit}>
+          <label className="mb-3 block text-sm">
+            Vehicle condition
+            <select aria-label="Vehicle condition" value={condition}
+              className="ml-3 rounded border border-border bg-surface px-3 py-2"
+              onChange={(event) => { setCondition(event.target.value); instantNav({ condition: event.target.value || undefined }); }}>
+              <option value="">All vehicles</option><option value="NEW">New</option><option value="USED">Used</option>
+            </select>
+          </label>
         <div className="flex flex-col sm:flex-row sm:items-end gap-3">
           <div className="w-full sm:w-[200px]">
             <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-text-secondary">

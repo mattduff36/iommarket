@@ -36,6 +36,8 @@ export type ConnectorKey =
   | "autoweb"
   | "dealer-websites"
   | "iomwebdesign"
+  | "van-mossel"
+  | "handh"
   | "html-structured"
   | "csv"
   | "unknown";
@@ -72,6 +74,7 @@ export interface DealerRecord {
 }
 
 export interface CanonicalVehicle {
+  condition?: "NEW" | "USED";
   dealerKey: string;
   sourceKey: string;
   platform: ConnectorKey;

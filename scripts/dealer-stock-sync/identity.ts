@@ -61,6 +61,7 @@ export function vehicleContentHash(vehicle: CanonicalVehicle) {
   return createHash("sha256")
     .update(
       JSON.stringify({
+        condition: vehicle.condition ?? null,
         make: vehicle.make,
         model: vehicle.model,
         derivative: vehicle.derivative,

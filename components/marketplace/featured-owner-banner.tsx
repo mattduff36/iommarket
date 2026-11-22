@@ -82,7 +82,8 @@ export function FeaturedOwnerBanner({
       >
         <X className="h-4 w-4" aria-hidden="true" />
       </button>
-      <div className="space-y-3 pr-8">
+      <div className="flex flex-col gap-3 pr-8 sm:flex-row sm:items-center sm:justify-between">
+        <div className="space-y-1">
         <p className="text-sm font-semibold text-premium-gold-400">Feature this listing</p>
         <p className="text-sm text-text-secondary">
           Featured placement costs {price}
@@ -90,6 +91,10 @@ export function FeaturedOwnerBanner({
             ? " and starts after the listing is approved"
             : " and starts once payment is confirmed"}.
         </p>
+        <Button type="button" variant="ghost" size="sm" onClick={() => setDialogOpen(true)}>
+          How to upgrade later
+        </Button>
+        </div>
         <FeaturedUpgradeButton
           listingId={listingId}
           featuredUpgradePricePence={featuredUpgradePricePence}
@@ -97,26 +102,26 @@ export function FeaturedOwnerBanner({
           pendingReview={pendingReview}
           variant="inline"
         />
-        <Button type="button" variant="ghost" size="sm" onClick={() => setDialogOpen(true)}>
-          How to upgrade later
-        </Button>
       </div>
       </aside>
       )}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent>
-          <DialogHeader>
+          <DialogHeader className="space-y-3">
             <DialogTitle className="text-xl">Upgrade later</DialogTitle>
             <DialogDescription className="text-base text-text-primary">
               You can buy Featured later from My listings while this listing is awaiting review
               or live.
             </DialogDescription>
           </DialogHeader>
-          <p className="text-sm text-text-secondary">
-            Open My listings, find this listing, and choose Feature. Placement starts after the
-            listing is approved.
+          <p className="my-3 text-sm text-text-secondary">
+            Open My listings, find this listing, and choose Feature. {pendingReview
+              ? "Placement starts after approval and payment confirmation."
+              : "Placement starts once payment is confirmed."}
           </p>
           <DialogFooter>
+            <FeaturedUpgradeButton listingId={listingId} featuredUpgradePricePence={featuredUpgradePricePence}
+              checkoutUnavailable={checkoutUnavailable} pendingReview={pendingReview} variant="inline" />
             <DialogClose asChild>
               <Button type="button" className="w-full sm:w-auto sm:min-w-24">
                 OK

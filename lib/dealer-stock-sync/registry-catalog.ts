@@ -17,6 +17,8 @@ export const DEALER_STOCK_REGISTRY_OPTIONS = [
   { key: "cars-4-you", label: "Cars 4 You" },
   { key: "dw-cars", label: "DW Cars" },
   { key: "franklins", label: "Franklins" },
+  { key: "handh-motorcycles", label: "H&H Motorcycles" },
+  { key: "isle-of-man-motorcycles", label: "Isle of Man Motorcycles" },
   { key: "im1-car-centre", label: "iM1 Car Centre" },
   { key: "ingear-car-sales", label: "Ingear Car Sales" },
   { key: "kingswood-honda", label: "Kingswood Honda" },

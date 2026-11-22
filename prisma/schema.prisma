@@ -133,6 +133,7 @@ model UserNotificationSettings {
 }
 
 model DealerProfile {
+  showStockSourceLinks Boolean @default(true)
   id             String     @id @default(cuid())
   userId         String     @unique
   name           String
@@ -428,7 +429,15 @@ enum ListingStatusEventSource {
   PAYMENT
 }
 
+enum VehicleCondition {
+  NEW
+  USED
+}
+
 model Listing {
+  condition VehicleCondition @default(USED)
+  conditionReviewRequired Boolean @default(false)
+  ownerArchivedAt DateTime?
   id                         String             @id @default(cuid())
   userId                     String
   dealerId                   String?
@@ -480,6 +489,7 @@ model Listing {
   stockSourceIdentity     DealerStockSourceIdentity?
 
   @@unique([previewPackId, reviewSourceIdentity])
+  @@index([condition, status])
   @@index([categoryId, regionId, status])
   @@index([status])
   @@index([price])
@@ -665,6 +675,7 @@ enum ListingRevisionStatus {
 }
 
 model ListingRevision {
+  condition VehicleCondition @default(USED)
   id                         String                   @id @default(cuid())
   listingId                  String
   title                      String

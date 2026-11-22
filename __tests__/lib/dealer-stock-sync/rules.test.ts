@@ -73,6 +73,12 @@ function plan(overrides: Partial<Parameters<typeof buildStockSyncPlan>[0]> = {})
 }
 
 describe("dealer stock sync rules", () => {
+  it("reviews explicit condition changes even when price and mileage stay unchanged", () => {
+    const result = plan({ vehicles: [vehicle({ condition: "USED" })], listings: [listing({ condition: "NEW" })] });
+    expect(result.actions[0]).toMatchObject({ kind: "update", conditionChange: { before: "NEW", after: "USED" } });
+    const unknown = plan({ vehicles: [vehicle()], listings: [listing({ condition: "NEW" })] });
+    expect(unknown.actions[0].kind).toBe("unchanged");
+  });
   it("freezes source photos for approval and holds unmatched existing stock", () => {
     const sourceImageUrls = ["https://dealer.example/vehicle.jpg"];
     const next = vehicle({ sourceIdentityKey: "sourceVehicleId:2", sourceImageUrls });

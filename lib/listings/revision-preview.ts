@@ -1,4 +1,5 @@
 export interface RevisionPreviewSide {
+  condition?: "NEW" | "USED";
   title: string;
   description: string;
   price: number;
@@ -32,6 +33,7 @@ export function buildRevisionFieldDiffs(
   const diffs: RevisionFieldDiff[] = [];
   const scalarFields: Array<[string, string, string]> = [
     ["Title", live.title, proposed.title],
+    ["Condition", live.condition ?? "USED", proposed.condition ?? "USED"],
     ["Description", live.description, proposed.description],
     ["Price", formatPricePence(live.price), formatPricePence(proposed.price)],
     ["Category", live.categoryName, proposed.categoryName],

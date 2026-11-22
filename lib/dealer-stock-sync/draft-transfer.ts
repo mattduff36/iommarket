@@ -36,6 +36,7 @@ async function existingListingDraft(tx: Prisma.TransactionClient, snapshot: Fing
   });
   if (claimed.count !== 1) throw new Error("This listing changed. Reload the review.");
   const revision = await tx.listingRevision.create({ data: {
+    condition: action.kind === "update" ? action.conditionChange?.after ?? listing.condition : listing.condition,
     listingId: listing.id, title: listing.title, description: listing.description,
     price: price ?? listing.price, categoryId: listing.categoryId, regionId: listing.regionId,
     trustDeclarationAccepted: false, trustDeclarationAcceptedAt: null, status: "DRAFT",
@@ -66,6 +67,7 @@ async function newListingDraft(tx: Prisma.TransactionClient, snapshot: Fingerpri
   const listing = await tx.listing.create({ data: {
     userId: snapshot.dealer.userId, dealerId: snapshot.dealer.id, categoryId: category.id, regionId: region.id,
     title: title.slice(0, 120), description: source?.description ?? "", price: source?.pricePence ?? action.review?.pricePence ?? 0,
+    condition: action.kind === "create" ? action.condition ?? "USED" : "USED",
     status: "DRAFT", trustDeclarationAccepted: false, featured: false,
     reviewSourceIdentity: action.sourceIdentityKey, reviewSourceUrl: source?.sourceUrl ?? action.review?.sourceUrl ?? null,
     slug: `stock-draft-${createHash("sha256").update(`${snapshot.dealer.id}:${action.sourceIdentityKey}`).digest("hex").slice(0, 24)}`,

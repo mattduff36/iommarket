@@ -1471,6 +1471,7 @@ describe("CreateListingForm registration lookup", () => {
     await waitFor(() => {
       expect(updateListing).toHaveBeenCalledWith({
         id: "draft-123",
+        condition: "USED",
         title: "2017 Audi A3 Sport",
         description: "Previously saved draft description with enough detail to remain valid.",
         price: 1125000,

@@ -16,6 +16,7 @@ export const vehicleCatalogueSelectionSchema = z.object({
 });
 
 export const listingDetailsSchema = z.object({
+  condition: z.enum(["NEW", "USED"]).default("USED"),
   title: z
     .string()
     .trim()
@@ -55,6 +56,7 @@ export const createListingSchema = listingDetailsSchema.extend({
 });
 
 export const updateListingSchema = listingDetailsSchema.partial().extend({
+  condition: z.enum(["NEW", "USED"]).optional(),
   id: z.string().cuid(),
 });
 
@@ -289,7 +291,7 @@ export const takeDownFromReportSchema = z
     }
   });
 
-export type CreateListingInput = z.infer<typeof createListingSchema>;
+export type CreateListingInput = z.input<typeof createListingSchema>;
 export type UpdateListingInput = z.infer<typeof updateListingSchema>;
 export type ReportListingInput = z.infer<typeof reportListingSchema>;
 export type ModerateListingInput = z.infer<typeof moderateListingSchema>;

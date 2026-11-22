@@ -1,5 +1,9 @@
 # CursorPlaybook Guide
 
+## Canonical local folder
+
+Use `D:\Websites\iommarket` as the only local checkout for this project. Do not create or use additional local project folders or Git worktrees. Keep project-specific evidence, documents and build outputs under this root; keep secrets in ignored, access-controlled locations and out of Git.
+
 ## Project-local fixerrors
 
 When the user says `fixerrors`, use this chat's attached repository and read

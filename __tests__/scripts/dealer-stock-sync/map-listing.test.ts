@@ -20,6 +20,13 @@ function reconciled(overrides: Parameters<typeof vehicle>[0] = {}): ReconciledVe
 }
 
 describe("FDP-MAP-001 category mapping", () => {
+  it("imports explicit New stock without inventing year or mileage", () => {
+    const result = mapReconciledVehicle(reconciled({ condition: "NEW", year: null, mileage: null }));
+    expect(result.listing?.condition).toBe("NEW");
+    expect(result.listing?.attributes).not.toHaveProperty("year");
+    expect(result.listing?.attributes).not.toHaveProperty("mileage");
+    expect(mapReconciledVehicle(reconciled({ condition: "USED", year: null, mileage: null })).listing).toBeNull();
+  });
   it.each([
     ["MERCEDES AMG", "A CLASS", "Mercedes-Benz", "A-Class AMG"],
     ["VW", "GOLF GTI", "Volkswagen", "Golf GTI"],

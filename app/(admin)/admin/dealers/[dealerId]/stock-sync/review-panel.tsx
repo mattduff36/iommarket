@@ -109,6 +109,8 @@ function Row({
           {action.attributes.year ? ` · ${action.attributes.year}` : ""}
         </p>
       ) : null}
+      {action.kind === "update" && action.conditionChange ? <p className="text-text-secondary">Condition: {action.conditionChange.before} to {action.conditionChange.after}</p> : null}
+      {action.kind === "create" ? <p className="text-text-secondary">Condition: {action.condition ?? "USED"}</p> : null}
       {changesFor(action).map((change) => (
         <p key={change.field} className="text-text-secondary">
           {change.field === "price" ? "Price" : "Mileage"}: {change.before == null ? "Not listed" : change.field === "price" ? formatGbpFromPence(change.before) : change.before.toLocaleString("en-GB")} to {change.after == null ? "Not listed" : change.field === "price" ? formatGbpFromPence(change.after) : change.after.toLocaleString("en-GB")}

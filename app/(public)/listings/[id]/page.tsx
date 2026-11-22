@@ -194,8 +194,9 @@ export default async function ListingDetailPage({ params, searchParams }: Props)
           deletedAt: true,
         },
       },
-      dealer: { select: { name: true, slug: true, phone: true, verified: true, isAdminPreview: true } },
-      previewPack: { select: previewPackVisibilitySelect() },
+      stockSourceIdentity: { select: { binding: { select: { registryKey: true } } } },
+      dealer: { select: { id: true, tier: true, showStockSourceLinks: true, name: true, slug: true, phone: true, verified: true, isAdminPreview: true } },
+      previewPack: { select: { ...previewPackVisibilitySelect(), dealerKey: true } },
       attributeValues: {
         include: { attributeDefinition: true },
       },
@@ -203,6 +204,9 @@ export default async function ListingDetailPage({ params, searchParams }: Props)
   });
 
   if (!listing) notFound();
+  const sourceHref = listing.dealer?.tier === "PRO" && listing.dealer.showStockSourceLinks
+    ? publicDetailLink(listing.stockSourceIdentity?.binding.registryKey ?? listing.previewPack?.dealerKey, listing.reviewSourceUrl)
+    : null;
   const dealerAccess = await hasPublicListingSellerAccess(
     listing.dealerId,
     Boolean(listing.user.disabledAt),
@@ -440,6 +444,7 @@ export default async function ListingDetailPage({ params, searchParams }: Props)
       {showAdminReviewActions && pendingRevision ? (
         <PendingRevisionReview
           live={{
+            condition: listing.condition,
             title: listing.title,
             description: listing.description,
             price: listing.price,
@@ -452,6 +457,7 @@ export default async function ListingDetailPage({ params, searchParams }: Props)
             imagePublicIds: listing.images.map((image) => image.publicId),
           }}
           proposed={{
+            condition: pendingRevision.condition,
             title: pendingRevision.title,
             description: pendingRevision.description,
             price: pendingRevision.price,
@@ -780,6 +786,7 @@ export default async function ListingDetailPage({ params, searchParams }: Props)
                 location={item.region.name}
                 meta={item.category.name}
                 featured={item.featured}
+                condition={item.condition}
                 badge={item.status === "ADMIN_PREVIEW" ? ADMIN_PREVIEW_BADGE : item.featured ? "Featured" : undefined}
                 {...listingPreviewCardProps(
                   item,
@@ -793,9 +800,14 @@ export default async function ListingDetailPage({ params, searchParams }: Props)
         </section>
       )}
 
+      <p className="text-sm text-text-secondary">Vehicle condition: {listing.condition === "NEW" ? "New" : "Used"}</p>
+      {sourceHref && listing.dealer && (
+        <DealerStockLink href={sourceHref} dealerName={listing.dealer.name} dealerId={listing.dealer.id} listingId={listing.id} />
+      )}
       {isVisible ? (
         <JsonLd
           data={buildListingProductJsonLd({
+            condition: listing.condition,
             id: listing.id,
             url: shareUrl,
             name: listing.title,
@@ -836,5 +848,7 @@ export default async function ListingDetailPage({ params, searchParams }: Props)
     </div>
   );
 }
+import { publicDetailLink } from "@/lib/dealer-stock-sync/public-detail-link";
+import { DealerStockLink } from "@/components/marketplace/dealer-stock-link";
 import { isRipplePreviewRuntime } from "@/lib/payments/ripple-config";
 import { isSampleCheckoutEnabled } from "@/lib/payments/sample-checkout-config";

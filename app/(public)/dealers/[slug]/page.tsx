@@ -43,6 +43,7 @@ import { applySampleDealerReviewVisibility } from "@/lib/listings/sample-related
 
 interface Props {
   params: Promise<{ slug: string }>;
+  searchParams?: Promise<{ condition?: string }>;
 }
 
 function stars(rating: number) {
@@ -148,7 +149,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   });
 }
 
-export default async function DealerProfilePage({ params }: Props) {
+export default async function DealerProfilePage({ params, searchParams }: Props) {
   const { slug } = await params;
   const currentUser = await getCurrentUser();
   const sampleVisibility = await getSampleVisibility();
@@ -220,6 +221,8 @@ export default async function DealerProfilePage({ params }: Props) {
     }
   }
 
+  const query = await searchParams;
+  const condition = query?.condition === "NEW" || query?.condition === "USED" ? query.condition : undefined;
   await expireStaleLiveListings();
   const liveWhere = await marketplaceListingWhereWithSettings({
     viewer: currentUser,
@@ -230,7 +233,7 @@ export default async function DealerProfilePage({ params }: Props) {
     where: { slug },
     include: {
       listings: {
-        where: liveWhere,
+        where: { ...liveWhere, ...(condition ? { condition } : {}) },
         orderBy: [{ featured: "desc" }, { createdAt: "desc" }],
         include: {
           images: { take: 1, orderBy: { order: "asc" }, select: listingPhotoSelect },
@@ -540,6 +543,7 @@ export default async function DealerProfilePage({ params }: Props) {
         {dealer.listings.length} Active Listing{dealer.listings.length !== 1 ? "s" : ""}
       </h2>
 
+        <form className="mb-4 flex items-center gap-3" method="get"><label htmlFor="dealer-stock-condition">Vehicle condition</label><select id="dealer-stock-condition" name="condition" defaultValue={condition ?? ""} className="rounded border border-border bg-surface px-3 py-2"><option value="">All stock</option><option value="NEW">New</option><option value="USED">Used</option></select><button type="submit" className="rounded border border-border px-3 py-2">Apply</button></form>
       {dealer.listings.length > 0 ? (
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
           {dealer.listings.map((listing) => (
@@ -551,6 +555,7 @@ export default async function DealerProfilePage({ params }: Props) {
               location={listing.region.name}
               meta={listing.category.name}
               featured={listing.featured}
+                condition={listing.condition}
               badge={marketplaceListingBadge({
                 status: listing.status,
                 featured: listing.featured,

@@ -98,7 +98,7 @@ export async function syncListingImagesForUser({
       },
     },
   });
-  if (!listing) return { error: "Listing not found" };
+  if (!listing || listing.ownerArchivedAt) return { error: "Listing not found" };
   const adminHeldEdit = isAdmin && listing.stockReviewHeld;
   if (listing.userId !== userId && !adminHeldEdit) return { error: "Not authorised" };
   if (listing.stockReviewHeld && !adminHeldEdit) return { error: STOCK_REVIEW_HELD_ERROR };
@@ -177,9 +177,9 @@ export async function syncListingImagesForUser({
     await db.$transaction(async (tx) => {
       const currentListing = await tx.listing.findUnique({
         where: { id: listingId },
-        select: { photoRevision: true, status: true, stockReviewHeld: true, userId: true },
+        select: { photoRevision: true, status: true, stockReviewHeld: true, userId: true, ownerArchivedAt: true },
       });
-      if (!currentListing) {
+      if (!currentListing || currentListing.ownerArchivedAt) {
         throw new Error("Listing not found");
       }
       if (Boolean(currentListing.stockReviewHeld) !== Boolean(adminHeldEdit) ||
@@ -360,6 +360,7 @@ export async function syncListingImagesForUser({
           userId: listing.userId,
           dealerId: listing.dealerId,
           photoRevision: input.basePhotoRevision,
+          ownerArchivedAt: null,
           stockReviewHeld: Boolean(adminHeldEdit),
           status: { in: adminHeldEdit ? ["DRAFT", "REJECTED"] : ["DRAFT", "EXPIRED", "TAKEN_DOWN", "REJECTED"] },
           ...(adminHeldEdit ? { soldAt: null, previewPackId: null, retentionPurgedAt: null } : {}),

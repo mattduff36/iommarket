@@ -19,6 +19,7 @@ import {
 
 interface Props {
   initialData: {
+    showStockSourceLinks?: boolean;
     name: string;
     slug: string;
     bio: string | null;
@@ -33,6 +34,7 @@ export function DealerProfileForm({ initialData }: Props) {
   const [isPending, startTransition] = useTransition();
 
   const [name, setName] = useState(initialData.name);
+  const [showStockSourceLinks, setShowStockSourceLinks] = useState(initialData.showStockSourceLinks);
   const [slug, setSlug] = useState(initialData.slug);
   const [bio, setBio] = useState(initialData.bio ?? "");
   const [website, setWebsite] = useState(initialData.website ?? "");
@@ -68,6 +70,7 @@ export function DealerProfileForm({ initialData }: Props) {
     startTransition(async () => {
       try {
       const result = await updateMyDealerProfile({
+        ...(showStockSourceLinks !== undefined ? { showStockSourceLinks } : {}),
         name,
         slug,
         bio,
@@ -118,6 +121,13 @@ export function DealerProfileForm({ initialData }: Props) {
         <form onSubmit={handleSubmit} noValidate aria-busy={isPending}>
           <fieldset disabled={isPending} className="space-y-4">
           <FormErrorSummary messages={uniqueErrorMessages(fieldErrors, error)} />
+          {showStockSourceLinks !== undefined && (
+            <label className="flex items-center gap-2 text-sm">
+              <input type="checkbox" checked={showStockSourceLinks}
+                onChange={(event) => setShowStockSourceLinks(event.target.checked)} />
+              Show a link to my website on imported vehicle listings
+            </label>
+          )}
           <Input
             label="Dealer name"
             value={name}

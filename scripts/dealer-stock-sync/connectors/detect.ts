@@ -10,7 +10,12 @@ import { netdirectorConnector } from "./netdirector";
 import { unknownConnector } from "./unknown";
 import type { ConnectorKey } from "../types";
 
+import { vanMosselConnector } from "./van-mossel";
+import { handhConnector } from "./handh";
+
 export const CONNECTORS: StockConnector[] = [
+  vanMosselConnector,
+  handhConnector,
   netdirectorConnector,
   clickDealerConnector,
   dragon2000Connector,

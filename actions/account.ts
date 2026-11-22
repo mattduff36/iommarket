@@ -153,6 +153,8 @@ export async function updateMyDealerProfile(input: UpdateDealerSelfProfileInput)
         where: { id: profile.id },
         data: {
           name: data.name,
+          ...(user.dealerProfile.tier === "PRO" && data.showStockSourceLinks !== undefined
+            ? { showStockSourceLinks: data.showStockSourceLinks } : {}),
           slug: data.slug,
           bio: data.bio || null,
           website: data.website || null,

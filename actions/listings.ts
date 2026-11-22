@@ -382,10 +382,11 @@ async function updateListingBody(input: unknown) {
       status: true,
       trustDeclarationAcceptedAt: true,
       stockReviewHeld: true,
+      ownerArchivedAt: true,
       lifecycleRevision: true,
     },
   });
-  if (!existing || existing.userId !== user.id) {
+  if (!existing || existing.ownerArchivedAt || existing.userId !== user.id) {
     return { error: LISTING_UNAVAILABLE };
   }
   if (existing.stockReviewHeld) return { error: STOCK_REVIEW_HELD_ERROR };
@@ -490,6 +491,7 @@ async function updateListingBody(input: unknown) {
         where: { id, userId: user.id, stockReviewHeld: false, status: existing.status, lifecycleRevision: existing.lifecycleRevision },
         data: {
           ...data,
+          ...(data.condition ? { conditionReviewRequired: false } : {}),
           lifecycleRevision: { increment: 1 },
           ...(data.trustDeclarationAccepted !== undefined
             ? {
@@ -598,7 +600,7 @@ async function submitListingForReviewBody(
       dealer: { select: { tier: true } },
     },
   });
-  if (!listing || listing.userId !== user.id || hasMismatchedDealerListing(user, listing)) {
+  if (!listing || listing.ownerArchivedAt || listing.userId !== user.id || hasMismatchedDealerListing(user, listing)) {
     return { error: LISTING_UNAVAILABLE };
   }
   if (listing.stockReviewHeld) return { error: STOCK_REVIEW_HELD_ERROR };

@@ -26,6 +26,7 @@ export function liveReviewEvidence(input: {
 function evidenceFor(vehicle: CanonicalVehicle, capturedAt: string): ReviewedActionEvidence {
   const displayTitle = buildTitle(vehicle).trim() || "Vehicle requiring review";
   return {
+    condition: vehicle.condition,
     displayTitle,
     fuel: textOrNull(vehicle.fuel),
     transmission: textOrNull(vehicle.transmission),
@@ -50,6 +51,7 @@ function evidenceFor(vehicle: CanonicalVehicle, capturedAt: string): ReviewedAct
 function vehicleSourceSignature(vehicle: CanonicalVehicle) {
   return stableStockContentSignature({
     sourceVehicleId: vehicle.sourceVehicleId, registration: vehicle.registration, vin: vehicle.vin, stockReference: vehicle.stockReference,
+    condition: vehicle.condition ?? null,
     make: vehicle.make, model: vehicle.model, derivative: vehicle.derivative, year: vehicle.year,
     firstRegistrationDate: vehicle.firstRegistrationDate, mileage: vehicle.mileage, pricePence: vehicle.pricePence, isPoa: vehicle.isPoa,
     fuel: vehicle.fuel, transmission: vehicle.transmission, bodyType: vehicle.bodyType, colour: vehicle.colour,

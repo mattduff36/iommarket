@@ -148,6 +148,8 @@ export default async function AdminListingsPage({
 }: {
   searchParams: Promise<{
     status?: string;
+    featured?: string;
+    condition?: string;
     q?: string;
     page?: string;
     sort?: string;
@@ -157,6 +159,7 @@ export default async function AdminListingsPage({
   await expireStaleLiveListings();
   const params = await searchParams;
   const status = parseAdminListingStatus(params.status);
+  const featured = params.featured === "yes" || params.featured === "no" ? params.featured : undefined;
   const query = params.q?.trim() ?? "";
   const page = parseAdminPage(params.page);
   const sort = parseAdminSort(params, LISTING_TABLE_COLUMNS, LISTING_TABLE_SORT);
@@ -165,6 +168,10 @@ export default async function AdminListingsPage({
     query,
     sampleVisibility: await getSampleVisibility(),
   });
+  const condition = ["NEW", "USED", "REVIEW"].includes(params.condition ?? "") ? params.condition : undefined;
+  if (condition === "NEW" || condition === "USED") where.condition = condition;
+  if (condition === "REVIEW") where.conditionReviewRequired = true;
+  if (featured) where.featured = featured === "yes";
   const listingInclude = {
     user: { select: { name: true, email: true } },
     category: { select: { name: true } },
@@ -207,6 +214,8 @@ export default async function AdminListingsPage({
         ]);
   const totalPages = adminTotalPages(total, ADMIN_LISTING_PAGE_SIZE);
   const current = {
+    featured,
+    condition,
     status,
     q: query || undefined,
     page: String(page),
@@ -226,6 +235,8 @@ export default async function AdminListingsPage({
         meta={<span>{total} {total === 1 ? "listing" : "listings"}</span>}
       />
       <AdminListingFilters
+        featured={featured}
+        condition={condition}
         query={query}
         status={status}
         sort={current.sort}
@@ -255,6 +266,7 @@ export default async function AdminListingsPage({
               <TableRow key={listing.id} className="group">
                 <ReviewCell column="title" href={reviewHref} className="truncate font-medium">
                   {listing.title}
+                  <span className="ml-2 text-xs text-text-secondary">{listing.condition === "NEW" ? "New" : "Used"}{listing.conditionReviewRequired ? " · Condition needs review" : ""}</span>
                   <span className="mt-0.5 block text-xs font-normal text-text-tertiary">{listing.category.name}</span>
                   {listing.attributeValues[0]?.value === "Category N" ||
                   listing.attributeValues[0]?.value === "Category S" ? (

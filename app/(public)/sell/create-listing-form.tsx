@@ -113,6 +113,7 @@ export function CreateListingForm({
   const [fieldErrors, setFieldErrors] = useState<Record<string, string[]>>({});
   const [step, setStep] = useState<GuidedListingStep>(1);
   const [selectedCategoryId, setSelectedCategoryId] = useState(initialDraft?.categoryId ?? "");
+  const [condition, setCondition] = useState<"NEW" | "USED">(initialDraft?.condition ?? "USED");
   const [titleValue, setTitleValue] = useState(initialDraft?.title ?? "");
   const [descriptionValue, setDescriptionValue] = useState(initialDraft?.description ?? "");
   const [priceValue, setPriceValue] = useState(
@@ -168,6 +169,7 @@ export function CreateListingForm({
   });
   const { localDraft, draftCatalog, unsavedSnapshot } = useCreateListingLocalDraft({
     enabled: Boolean(userId) && !initialDraft, userId: userId ?? "", mode, categories, regions,
+    condition: [condition, setCondition],
     category: [selectedCategoryId, setSelectedCategoryId], title: [titleValue, setTitleValue],
     description: [descriptionValue, setDescriptionValue], price: [priceValue, setPriceValue],
     region: [regionId, setRegionId], attributes: [attributeValues, setAttributeValues],
@@ -685,6 +687,13 @@ export function CreateListingForm({
             </p>
           ) : null}
           <form ref={formRef} onSubmit={handleSubmit} className="space-y-6">
+            <label className="block space-y-2 text-sm">
+              <span>Vehicle condition</span>
+              <select name="condition" value={condition} onChange={(event) => setCondition(event.target.value === "NEW" ? "NEW" : "USED")} disabled={revisionLocked}
+                className="block rounded border border-border bg-surface px-3 py-2">
+                <option value="USED">Used</option><option value="NEW">New</option>
+              </select>
+            </label>
             {localDraft.message || localDraft.warning || localDraft.canDiscard ? (
               <div className="flex flex-wrap items-center gap-3 text-xs text-text-secondary">
                 {localDraft.message ? <p role="status">{localDraft.message}</p> : null}

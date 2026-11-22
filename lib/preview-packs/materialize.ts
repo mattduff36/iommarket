@@ -134,6 +134,7 @@ export async function insertPreviewListing(
     dealerKey: string;
     sourceRunId: string;
     identityKey: string;
+    sourceUrl?: string | null;
     listing: NonNullable<ReturnType<typeof mapReconciledVehicle>["listing"]>;
     images: Awaited<ReturnType<typeof uploadPreviewPackImages>>;
     catalog: Awaited<ReturnType<typeof loadPreviewPackCatalog>>;
@@ -194,6 +195,8 @@ export async function insertPreviewListing(
       previewPackId: input.previewPackId,
       categoryId,
       regionId: input.catalog.regionId,
+      condition: input.listing.condition ?? "USED",
+      conditionReviewRequired: !input.listing.condition,
       title: input.listing.title,
       description: input.listing.description,
       price: input.listing.pricePence,
@@ -205,7 +208,7 @@ export async function insertPreviewListing(
       reviewState: input.review?.state ?? "NONE",
       reviewReasons: input.review?.reasons ?? [],
       reviewSourceIdentity: input.review?.sourceIdentity ?? null,
-      reviewSourceUrl: input.review?.sourceUrl ?? null,
+      reviewSourceUrl: input.review?.sourceUrl ?? input.sourceUrl ?? null,
     },
   });
 
@@ -518,6 +521,7 @@ async function applyResumeAction(input: {
         dealerKey: input.dealerKey,
         sourceRunId: input.sourceRunId,
         identityKey: input.mapped.identityKey,
+        sourceUrl: input.mapped.vehicle.vehicle.detailUrl,
         listing: input.mapped.listing,
         images,
         catalog: input.catalog,

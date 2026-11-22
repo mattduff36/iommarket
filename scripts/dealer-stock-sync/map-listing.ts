@@ -1,3 +1,4 @@
+import { stockRouteCondition } from "../../lib/listings/condition";
 import { FUEL_TYPE_OPTIONS } from "../../lib/constants/fuel-types";
 import type { DealerStockCategorySlug } from "../../lib/dealer-stock-sync/types";
 import { uniqueImageUrls } from "./image-urls";
@@ -14,6 +15,7 @@ const MIN_DESCRIPTION = 20;
 const MAX_DESCRIPTION = 5000;
 
 export interface MappedArchiveListing {
+  condition?: "NEW" | "USED";
   title: string;
   description: string;
   pricePence: number;
@@ -156,10 +158,8 @@ export function mapReconciledVehicle(reconciled: ReconciledVehicle): MappingOutc
   if (
     !vehicle.make.trim() ||
     !vehicle.model.trim() ||
-    vehicle.year == null ||
-    vehicle.year < 1900 ||
-    vehicle.year > maximumYear ||
-    vehicle.mileage == null
+    (vehicle.condition !== "NEW" && (vehicle.year == null || vehicle.mileage == null)) ||
+    (vehicle.year != null && (vehicle.year < 1900 || vehicle.year > maximumYear))
   ) {
     return { reconciled, listing: null, skipReason: "missing-required-attr" };
   }
@@ -169,13 +169,13 @@ export function mapReconciledVehicle(reconciled: ReconciledVehicle): MappingOutc
   const description =
     vehicle.description.trim().length >= MIN_DESCRIPTION
       ? vehicle.description.trim().slice(0, MAX_DESCRIPTION)
-      : `${title}. ${vehicle.mileage.toLocaleString("en-GB")} miles.`.slice(0, MAX_DESCRIPTION);
+      : `${title}. ${vehicle.mileage != null ? `${vehicle.mileage.toLocaleString("en-GB")} miles.` : "New vehicle in dealer stock."}`.slice(0, MAX_DESCRIPTION);
 
   const attributes: Record<string, string> = {
     make: vehicle.make.trim(),
     model: vehicle.model.trim(),
-    year: String(vehicle.year),
-    mileage: String(vehicle.mileage),
+    ...(vehicle.year != null ? { year: String(vehicle.year) } : {}),
+    ...(vehicle.mileage != null ? { mileage: String(vehicle.mileage) } : {}),
     "write-off-category": "None",
   };
   const fuel = mapFuelType(vehicle.fuel);
@@ -186,6 +186,7 @@ export function mapReconciledVehicle(reconciled: ReconciledVehicle): MappingOutc
   return {
     reconciled,
     listing: {
+      condition: vehicle.condition ?? stockRouteCondition(vehicle.provenance.startUrl) ?? stockRouteCondition(vehicle.detailUrl) ?? undefined,
       title,
       description,
       pricePence: vehicle.pricePence,

@@ -139,7 +139,7 @@ describe("MATERIALIZER-RACE-001 preview image backfill CAS", () => {
     expect(listingCreate).not.toHaveBeenCalled();
   });
 
-  it("creates a zero-image review listing with durable review metadata", async () => {
+  it.each(["https://dealer.example/stock/2", null])("creates a review listing preserving its source URL (%s)", async (reviewUrl) => {
     const listingCreate = vi.fn().mockResolvedValue({ id: "review-created" });
     const tx = {
       $executeRaw: vi.fn(),
@@ -158,6 +158,7 @@ describe("MATERIALIZER-RACE-001 preview image backfill CAS", () => {
       dealerKey: "athol-garage",
       sourceRunId: "run-1",
       identityKey: "stockId:2",
+      sourceUrl: "https://dealer.example/stock/2",
       listing: {
         title: "Review car",
         description: "A complete review listing description.",
@@ -173,7 +174,7 @@ describe("MATERIALIZER-RACE-001 preview image backfill CAS", () => {
         state: "NEEDS_REVIEW",
         reasons: ["listing-has-no-valid-source-image"],
         sourceIdentity: "stockId:2",
-        sourceUrl: "https://dealer.example/stock/2",
+        sourceUrl: reviewUrl,
       },
     })).resolves.toBe("review-created");
     expect(listingCreate).toHaveBeenCalledWith({

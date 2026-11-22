@@ -243,6 +243,7 @@ export async function GET(request: NextRequest) {
     ],
     filters: {
     ...(listingIdsFromAttributes !== null ? { id: { in: listingIdsFromAttributes } } : {}),
+    ...(sp.get("condition") === "NEW" || sp.get("condition") === "USED" ? { condition: sp.get("condition") as "NEW" | "USED" } : {}),
     ...(sp.get("category") ? { category: { slug: sp.get("category")! } } : {}),
     ...(sp.get("featured") === "true" ? { featured: true } : {}),
     ...(sp.get("region") ? { region: { slug: sp.get("region")! } } : {}),
@@ -319,6 +320,7 @@ export async function GET(request: NextRequest) {
       title: listing.title,
       price: listing.price,
       featured: listing.featured,
+      condition: listing.condition,
       isFavourite: favouriteListingIds.has(listing.id),
       sold: listing.status === "SOLD",
       photo: toListingPhotoSource(listing.images[0]),

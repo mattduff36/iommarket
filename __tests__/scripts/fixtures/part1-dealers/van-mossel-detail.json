@@ -1,0 +1,424 @@
+{
+  "id": "285009710-1",
+  "deleted": false,
+  "additionalBenefits": [
+    {
+      "title": "Comprehensive Fill Workshop Check",
+      "text": {
+        "html": "Carried out by our fully trained technicians"
+      }
+    },
+    {
+      "title": "6 Months Warranty",
+      "text": {
+        "html": "For peace of mind motoring"
+      }
+    },
+    {
+      "title": "All service requirements met",
+      "text": {
+        "html": "Ensuring good working order"
+      }
+    },
+    {
+      "title": "Recall check on our brands",
+      "text": {
+        "html": "Any previous manufacturer recall requirements completed"
+      }
+    },
+    {
+      "title": "HPI-Cleared",
+      "text": {
+        "html": "No outstanding finance or insurance write-offs"
+      }
+    },
+    {
+      "title": "Flexible Finance Options",
+      "text": {
+        "html": "Access to a range of funders and products"
+      }
+    },
+    {
+      "title": "Top part exchange prices paid",
+      "text": {
+        "html": "Use your existing motorcycle as part payment"
+      }
+    },
+    {
+      "title": "Full Valet",
+      "text": {
+        "html": "...and ready with a full tank of fuel!"
+      }
+    }
+  ],
+  "slug": "vespa-gts-310-super-sport-eu5-gts-310-supersport-eu5-24my",
+  "brand": "Vespa",
+  "model": "GTS",
+  "type": "310 SUPER SPORT EU5+GTS 310 SuperSport EU5+ (24MY)",
+  "category": "used",
+  "vehicleType": "motorcycle",
+  "supplement": "310 SUPER SPORT EU5+GTS 310 SuperSport EU5+ (24MY)",
+  "identification": {
+    "capCode": null,
+    "licensePlate": "RMN358V"
+  },
+  "condition": {
+    "mileage": {
+      "unformatted": 2414
+    }
+  },
+  "advertiser": {
+    "id": "VMV0847",
+    "name": "Van Mossel Isle of Man Motorcycles",
+    "country": "im",
+    "countryDisplayName": "Isle of Man",
+    "legalCompanyName": null,
+    "advertiserText": "Van Mossel Isle of Man Motorcycles, (IM)"
+  },
+  "description": {
+    "title": "Vespa GTS 310 SUPER SPORT EU5+GTS 310 SuperSport EU5+ (24MY)",
+    "description": null
+  },
+  "price": {
+    "purchase": {
+      "amount": 4995,
+      "formatted": "£4,995",
+      "before_discount": {
+        "formatted": "£5,995",
+        "amount": 5995
+      },
+      "discount": {
+        "amount": 1000,
+        "isDiscounted": true
+      },
+      "suffix": ""
+    }
+  },
+  "tracking": {
+    "id": "285009710-1",
+    "brand": "Vespa",
+    "model": "GTS",
+    "type": "310 SUPER SPORT EU5+GTS 310 SuperSport EU5+ (24MY)",
+    "category": "motorcycle",
+    "body_style": "other",
+    "condition": "used",
+    "transmission": null,
+    "fuel": "petrol",
+    "reference_number": "RMN358V",
+    "location": {
+      "id": "VMV0847",
+      "country": "im",
+      "name": "Van Mossel Isle of Man Motorcycles"
+    },
+    "price_amount": 4995,
+    "price_currency": "GBP",
+    "build_year": null,
+    "odometer_value": 2414,
+    "odometer_unit": "mi",
+    "color": {
+      "key": "blue"
+    }
+  },
+  "specs": {
+    "power_in_kw": null,
+    "odometer": 2414,
+    "mileage_verification": {
+      "nap": false,
+      "car_pass": false,
+      "car_pass_url": null
+    },
+    "registration_date": null,
+    "location_town": "Braddan",
+    "schwacke_code": null,
+    "vin": "ZAPMD350000004719"
+  },
+  "fuel": {
+    "display_value": "Petrol",
+    "key": "petrol"
+  },
+  "structuredData": {
+    "xcard": {
+      "card": "summary_large_image",
+      "description": "Vespa GTS. 1.500 mi",
+      "image": "https://vanmossel.images.ilsa.cloud/41cff4fa-6f96-4b02-a46b-61dce3166430.webp",
+      "title": "Vespa GTS 310 SUPER SPORT EU5+GTS 310 SuperSport EU5+ (24MY)"
+    },
+    "schema": {
+      "@context": "https://auto.schema.org",
+      "@type": "Motorcycle",
+      "bodyType": "other",
+      "color": "Blue",
+      "description": "Vespa GTS. 1.500 mi",
+      "fuelType": "petrol",
+      "image": [
+        "https://vanmossel.images.ilsa.cloud/41cff4fa-6f96-4b02-a46b-61dce3166430.webp",
+        "https://vanmossel.images.ilsa.cloud/a256f68c-6693-402d-b07c-e2499b23a3cb.webp",
+        "https://vanmossel.images.ilsa.cloud/7d97c801-c574-47e2-b3a9-f7ca776a7789.webp",
+        "https://vanmossel.images.ilsa.cloud/1f303491-fb57-4d07-b402-40aecb4d32af.webp",
+        "https://vanmossel.images.ilsa.cloud/cee0f1b2-3bd2-4261-9f04-cf7d8ad2cd5f.webp",
+        "https://vanmossel.images.ilsa.cloud/fc408217-d1f9-4d6b-aefc-b783e53688ea.webp"
+      ],
+      "manufacturer": "Vespa",
+      "model": "GTS",
+      "name": "Vespa GTS 310 SUPER SPORT EU5+GTS 310 SuperSport EU5+ (24MY)",
+      "vehicleIdentificationNumber": "ZAPMD350000004719",
+      "brand": {
+        "@type": "Brand",
+        "name": "Vespa"
+      },
+      "itemCondition": {
+        "@value": "https://schema.org/UsedCondition"
+      },
+      "mileageFromOdometer": {
+        "@type": "QuantitativeValue",
+        "unitCode": "SMI",
+        "value": 1500
+      },
+      "offers": {
+        "@type": "Offer",
+        "price": 4995,
+        "priceCurrency": "GBP",
+        "availability": {
+          "@value": "https://schema.org/InStock"
+        },
+        "priceSpecification": {
+          "price": 4995,
+          "priceCurrency": "GBP",
+          "valueAddedTaxIncluded": true
+        },
+        "seller": {
+          "@type": "Organization",
+          "name": "Van Mossel Isle of Man Motorcycles",
+          "telephone": "01624 611700",
+          "address": {
+            "@type": "PostalAddress",
+            "addressCountry": "im",
+            "addressLocality": "Braddan",
+            "postalCode": "IM4 2AZ",
+            "streetAddress": "Cooil Road"
+          }
+        }
+      }
+    },
+    "opengraph": {
+      "description": "Vespa GTS. 1.500 mi",
+      "image": "https://vanmossel.images.ilsa.cloud/41cff4fa-6f96-4b02-a46b-61dce3166430.jpg",
+      "title": "Vespa GTS 310 SUPER SPORT EU5+GTS 310 SuperSport EU5+ (24MY)",
+      "type": "article"
+    }
+  },
+  "co2Class": {
+    "key": null,
+    "display_value": null
+  },
+  "co2ClassDischarged": {
+    "key": null,
+    "display_value": null
+  },
+  "information": [
+    {
+      "title": "Key details",
+      "key": "overview",
+      "subsections": [
+        {
+          "title": null,
+          "key": "285009710-1-subsection-0",
+          "htmlContent": null,
+          "items": [
+            {
+              "key": "identification.license_plate.formatted",
+              "label": "License plate",
+              "value": "RMN358V",
+              "display_value": "RMN358V",
+              "url": null,
+              "tooltip": null
+            }
+          ],
+          "features": []
+        }
+      ]
+    },
+    {
+      "title": "Model",
+      "key": "model",
+      "subsections": [
+        {
+          "title": null,
+          "key": "285009710-1-subsection-0",
+          "htmlContent": null,
+          "items": [
+            {
+              "key": "general.make.name",
+              "label": "Make",
+              "value": "Vespa",
+              "display_value": "Vespa",
+              "url": null,
+              "tooltip": null
+            },
+            {
+              "key": "general.model.name",
+              "label": "Model",
+              "value": "GTS",
+              "display_value": "GTS",
+              "url": null,
+              "tooltip": null
+            },
+            {
+              "key": "general.type.name",
+              "label": "Type",
+              "value": "310 SUPER SPORT EU5+GTS 310 SuperSport EU5+ (24MY)",
+              "display_value": "310 SUPER SPORT EU5+GTS 310 SuperSport EU5+ (24MY)",
+              "url": null,
+              "tooltip": null
+            },
+            {
+              "key": "general.category",
+              "label": "Category",
+              "value": "motorcycle",
+              "display_value": "Motorcycle",
+              "url": null,
+              "tooltip": null
+            },
+            {
+              "key": "body.colour.formatted",
+              "label": "Colour",
+              "value": "Blue",
+              "display_value": "Blue",
+              "url": null,
+              "tooltip": null
+            }
+          ],
+          "features": []
+        }
+      ]
+    },
+    {
+      "title": "Powertrain",
+      "key": "powertrain",
+      "subsections": [
+        {
+          "title": null,
+          "key": "285009710-1-subsection-0",
+          "htmlContent": null,
+          "items": [
+            {
+              "key": "powertrain.engine.energy.type.code",
+              "label": "Fuel type",
+              "value": "petrol",
+              "display_value": "Petrol",
+              "url": null,
+              "tooltip": null
+            }
+          ],
+          "features": []
+        }
+      ]
+    },
+    {
+      "title": "Condition",
+      "key": "condition",
+      "subsections": [
+        {
+          "title": null,
+          "key": "285009710-1-subsection-0",
+          "htmlContent": null,
+          "items": [
+            {
+              "key": "condition.odometer.value_in_mi",
+              "label": "Mileage",
+              "value": 1500,
+              "display_value": "1,500 miles",
+              "url": null,
+              "tooltip": null
+            }
+          ],
+          "features": []
+        }
+      ]
+    },
+    {
+      "title": "Financial information",
+      "key": "financial",
+      "subsections": [
+        {
+          "title": null,
+          "key": "285009710-1-subsection-0",
+          "htmlContent": null,
+          "items": [
+            {
+              "key": "sales_conditions.margin_scheme",
+              "label": "VAT/margin",
+              "value": "",
+              "display_value": "Unknown",
+              "url": null,
+              "tooltip": null
+            }
+          ],
+          "features": []
+        }
+      ]
+    }
+  ],
+  "images": [
+    {
+      "title": "Vespa-GTS-image-0",
+      "type": "image",
+      "src": "https://vanmossel.images.ilsa.cloud/902bba59-694a-48f6-ae4d-c7bc6e1e7220.webp",
+      "largest": "https://vanmossel.images.ilsa.cloud/941b478a-521f-4043-a4bb-cd75ba3034fc.webp",
+      "srcset": "https://vanmossel.images.ilsa.cloud/902bba59-694a-48f6-ae4d-c7bc6e1e7220.webp 320w, https://vanmossel.images.ilsa.cloud/4c7701ff-1e48-47fd-b2bb-2fff051d8ad6.webp 480w, https://vanmossel.images.ilsa.cloud/41cff4fa-6f96-4b02-a46b-61dce3166430.webp 640w, https://vanmossel.images.ilsa.cloud/58a14ef7-4133-4519-9d0e-9845591bfe1b.webp 1024w, https://vanmossel.images.ilsa.cloud/941b478a-521f-4043-a4bb-cd75ba3034fc.webp 1440w"
+    },
+    {
+      "title": "Vespa-GTS-image-1",
+      "type": "image",
+      "src": "https://vanmossel.images.ilsa.cloud/a256f68c-6693-402d-b07c-e2499b23a3cb.webp",
+      "largest": "https://vanmossel.images.ilsa.cloud/a256f68c-6693-402d-b07c-e2499b23a3cb.webp",
+      "srcset": "https://vanmossel.images.ilsa.cloud/a256f68c-6693-402d-b07c-e2499b23a3cb.webp 1440w"
+    },
+    {
+      "title": "Vespa-GTS-image-2",
+      "type": "image",
+      "src": "https://vanmossel.images.ilsa.cloud/7d97c801-c574-47e2-b3a9-f7ca776a7789.webp",
+      "largest": "https://vanmossel.images.ilsa.cloud/7d97c801-c574-47e2-b3a9-f7ca776a7789.webp",
+      "srcset": "https://vanmossel.images.ilsa.cloud/7d97c801-c574-47e2-b3a9-f7ca776a7789.webp 1440w"
+    },
+    {
+      "title": "Vespa-GTS-image-3",
+      "type": "image",
+      "src": "https://vanmossel.images.ilsa.cloud/1f303491-fb57-4d07-b402-40aecb4d32af.webp",
+      "largest": "https://vanmossel.images.ilsa.cloud/1f303491-fb57-4d07-b402-40aecb4d32af.webp",
+      "srcset": "https://vanmossel.images.ilsa.cloud/1f303491-fb57-4d07-b402-40aecb4d32af.webp 1440w"
+    },
+    {
+      "title": "Vespa-GTS-image-4",
+      "type": "image",
+      "src": "https://vanmossel.images.ilsa.cloud/cee0f1b2-3bd2-4261-9f04-cf7d8ad2cd5f.webp",
+      "largest": "https://vanmossel.images.ilsa.cloud/cee0f1b2-3bd2-4261-9f04-cf7d8ad2cd5f.webp",
+      "srcset": "https://vanmossel.images.ilsa.cloud/cee0f1b2-3bd2-4261-9f04-cf7d8ad2cd5f.webp 1440w"
+    },
+    {
+      "title": "Vespa-GTS-image-5",
+      "type": "image",
+      "src": "https://vanmossel.images.ilsa.cloud/fc408217-d1f9-4d6b-aefc-b783e53688ea.webp",
+      "largest": "https://vanmossel.images.ilsa.cloud/fc408217-d1f9-4d6b-aefc-b783e53688ea.webp",
+      "srcset": "https://vanmossel.images.ilsa.cloud/fc408217-d1f9-4d6b-aefc-b783e53688ea.webp 1440w"
+    }
+  ],
+  "interactiveGalleries": [],
+  "callToActions": [],
+  "advertiserId": "VMV0847",
+  "logoUrl": null,
+  "usps": [],
+  "uspTitle": null,
+  "uspDescription": null,
+  "tooGoodToTrade": null,
+  "financingUrl": null,
+  "delivery_packages": [],
+  "importBreakdown": {
+    "isCrossBorder": false,
+    "basePrice": null,
+    "importPackage": null,
+    "currency": null
+  },
+  "managersSpecial": null,
+  "pkwEnvkvSeoText": null
+}

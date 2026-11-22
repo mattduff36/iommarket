@@ -2,36 +2,36 @@
   "candidate_count": 3369,
   "file_count": 421,
   "csv_sha256": "067f8052f4a9601832f79a6b7762529f567a35995dfd76d9dad8ace07debfec7",
-  "semantic_display_verified_count": 469,
+  "semantic_display_verified_count": 468,
   "deferred_e_candidate_rows": 0,
   "classification_counts": {
-    "displayed": 1130,
-    "internal-only": 1304,
+    "displayed": 1127,
+    "internal-only": 1306,
     "duplicate": 793,
-    "irrelevant": 142
+    "irrelevant": 143
   },
   "rule_counts": {
-    "ast-public-return": 540,
-    "ast-no-public-sink": 866,
+    "ast-public-return": 538,
+    "ast-no-public-sink": 868,
     "exact-source-repeat": 793,
     "ast-value-reaches-return": 16,
     "ast-throw-forwarded": 51,
     "ast-throw-caller-sink": 101,
-    "ast-binding": 19,
+    "ast-binding": 20,
     "ast-throw-unrendered": 348,
     "ast-diagnostic-call": 71,
+    "ast-signature": 6,
     "ast-throw-replaced": 9,
     "ast-branch-condition": 7,
     "ast-enclosing-public-function": 65,
-    "ast-type-or-import": 105,
+    "ast-type-or-import": 104,
     "ast-public-sink": 231,
-    "ast-jsx-consumer": 126,
+    "ast-jsx-consumer": 125,
     "ast-jsx-close": 10,
     "ast-non-message-attribute": 3,
-    "ast-signature": 5,
     "ast-diagnostic-text": 3
   },
-  "exception_rows": 710,
+  "exception_rows": 711,
   "implementation_status_counts": {
     "journey-c-public-boundary": 153,
     "deferred-c": 2354,
@@ -75,11 +75,11 @@
     "lib-services": 12
   },
   "family_counts": {
-    "public-sink": 1225,
+    "public-sink": 1223,
     "raw-message": 169,
     "fragment": 588,
-    "static-literal": 301,
-    "thrown": 892,
+    "static-literal": 304,
+    "thrown": 891,
     "monitoring": 80,
     "rate-limit": 13,
     "field-errors": 101
@@ -115,7 +115,7 @@
     },
     {
       "id": "duplicate:exact-source-repeat:deferred-c:public-sink",
-      "count": 192,
+      "count": 191,
       "example": "actions/admin.ts:147",
       "rule_id": "exact-source-repeat",
       "classification": "duplicate"
@@ -135,16 +135,16 @@
       "classification": "internal-only"
     },
     {
-      "id": "duplicate:exact-source-repeat:deferred-c:thrown",
-      "count": 126,
-      "example": "actions/dealer-reviews.ts:66",
+      "id": "duplicate:exact-source-repeat:deferred-c:fragment",
+      "count": 125,
+      "example": "actions/account.ts:249",
       "rule_id": "exact-source-repeat",
       "classification": "duplicate"
     },
     {
-      "id": "duplicate:exact-source-repeat:deferred-c:fragment",
+      "id": "duplicate:exact-source-repeat:deferred-c:thrown",
       "count": 125,
-      "example": "actions/account.ts:249",
+      "example": "actions/dealer-reviews.ts:66",
       "rule_id": "exact-source-repeat",
       "classification": "duplicate"
     },
@@ -164,7 +164,7 @@
     },
     {
       "id": "displayed:ast-public-return:journey-c-public-boundary:public-sink",
-      "count": 67,
+      "count": 68,
       "example": "actions/account.ts:28",
       "rule_id": "ast-public-return",
       "classification": "displayed"
@@ -192,7 +192,7 @@
     },
     {
       "id": "displayed:ast-public-return:listings-b-public-boundary:public-sink",
-      "count": 48,
+      "count": 45,
       "example": "actions/listings.ts:134",
       "rule_id": "ast-public-return",
       "classification": "displayed"
@@ -213,7 +213,7 @@
     },
     {
       "id": "duplicate:exact-source-repeat:deferred-c:static-literal",
-      "count": 40,
+      "count": 41,
       "example": "actions/admin/database-sync.ts:77",
       "rule_id": "exact-source-repeat",
       "classification": "duplicate"
@@ -240,18 +240,18 @@
       "classification": "duplicate"
     },
     {
+      "id": "duplicate:exact-source-repeat:journey-c-public-boundary:public-sink",
+      "count": 30,
+      "example": "actions/account.ts:81",
+      "rule_id": "exact-source-repeat",
+      "classification": "duplicate"
+    },
+    {
       "id": "internal-only:ast-no-public-sink:deferred-c-payment-internals:thrown",
       "count": 29,
       "example": "lib/payments/provider.ts:64",
       "rule_id": "ast-no-public-sink",
       "classification": "internal-only"
-    },
-    {
-      "id": "duplicate:exact-source-repeat:journey-c-public-boundary:public-sink",
-      "count": 28,
-      "example": "actions/account.ts:81",
-      "rule_id": "exact-source-repeat",
-      "classification": "duplicate"
     },
     {
       "id": "duplicate:exact-source-repeat:journey-c-destructive-boundary:public-sink",
@@ -289,6 +289,13 @@
       "classification": "duplicate"
     },
     {
+      "id": "internal-only:ast-no-public-sink:listings-b-public-boundary:fragment",
+      "count": 24,
+      "example": "app/(public)/sell/create-listing-form.demo.ts:13",
+      "rule_id": "ast-no-public-sink",
+      "classification": "internal-only"
+    },
+    {
       "id": "displayed:ast-public-return:payments-b-public-boundary:public-sink",
       "count": 23,
       "example": "actions/payments.ts:150",
@@ -296,15 +303,8 @@
       "classification": "displayed"
     },
     {
-      "id": "internal-only:ast-no-public-sink:listings-b-public-boundary:fragment",
-      "count": 23,
-      "example": "app/(public)/sell/create-listing-form.demo.ts:13",
-      "rule_id": "ast-no-public-sink",
-      "classification": "internal-only"
-    },
-    {
       "id": "duplicate:exact-source-repeat:deferred-c:raw-message",
-      "count": 21,
+      "count": 22,
       "example": "actions/dealer-reviews.ts:347",
       "rule_id": "exact-source-repeat",
       "classification": "duplicate"
@@ -339,14 +339,14 @@
     },
     {
       "id": "internal-only:ast-no-public-sink:journey-c-public-boundary:raw-message",
-      "count": 20,
+      "count": 19,
       "example": "actions/account.ts:65",
       "rule_id": "ast-no-public-sink",
       "classification": "internal-only"
     },
     {
       "id": "duplicate:exact-source-repeat:journey-c-public-boundary:fragment",
-      "count": 19,
+      "count": 18,
       "example": "actions/dealer.ts:92",
       "rule_id": "exact-source-repeat",
       "classification": "duplicate"
@@ -373,6 +373,13 @@
       "classification": "internal-only"
     },
     {
+      "id": "internal-only:ast-no-public-sink:listings-b-public-boundary:static-literal",
+      "count": 16,
+      "example": "actions/listings.ts:326",
+      "rule_id": "ast-no-public-sink",
+      "classification": "internal-only"
+    },
+    {
       "id": "displayed:ast-public-return:deferred-c-payment-internals:public-sink",
       "count": 15,
       "example": "actions/admin/payments.ts:201",
@@ -380,9 +387,9 @@
       "classification": "displayed"
     },
     {
-      "id": "internal-only:ast-no-public-sink:listings-b-public-boundary:static-literal",
+      "id": "internal-only:ast-no-public-sink:payments-b-public-boundary:static-literal",
       "count": 15,
-      "example": "actions/listings.ts:326",
+      "example": "actions/payments.ts:109",
       "rule_id": "ast-no-public-sink",
       "classification": "internal-only"
     },
@@ -412,13 +419,6 @@
       "count": 14,
       "example": "actions/listings.ts:289",
       "rule_id": "ast-diagnostic-call",
-      "classification": "internal-only"
-    },
-    {
-      "id": "internal-only:ast-no-public-sink:payments-b-public-boundary:static-literal",
-      "count": 14,
-      "example": "actions/payments.ts:109",
-      "rule_id": "ast-no-public-sink",
       "classification": "internal-only"
     },
     {
@@ -457,13 +457,6 @@
       "classification": "duplicate"
     },
     {
-      "id": "irrelevant:ast-type-or-import:listings-b-public-boundary:fragment",
-      "count": 10,
-      "example": "app/(public)/sell/create-listing-form.lookup.ts:42",
-      "rule_id": "ast-type-or-import",
-      "classification": "irrelevant"
-    },
-    {
       "id": "duplicate:exact-source-repeat:deferred-c-payment-internals:public-sink",
       "count": 9,
       "example": "actions/admin/payments.ts:52",
@@ -478,11 +471,11 @@
       "classification": "internal-only"
     },
     {
-      "id": "displayed:ast-jsx-consumer:payments-b-public-boundary:public-sink",
-      "count": 8,
-      "example": "app/sample-checkout/[id]/checkout.tsx:188",
-      "rule_id": "ast-jsx-consumer",
-      "classification": "displayed"
+      "id": "irrelevant:ast-type-or-import:listings-b-public-boundary:fragment",
+      "count": 9,
+      "example": "app/(public)/sell/create-listing-form.lookup.ts:42",
+      "rule_id": "ast-type-or-import",
+      "classification": "irrelevant"
     },
     {
       "id": "displayed:ast-public-sink:deferred-c-payment-internals:public-sink",
@@ -490,6 +483,13 @@
       "example": "app/(admin)/admin/payments/attach-inbox-form.tsx:20",
       "rule_id": "ast-public-sink",
       "classification": "displayed"
+    },
+    {
+      "id": "irrelevant:ast-binding:listings-b-public-boundary:fragment",
+      "count": 8,
+      "example": "actions/listings.ts:115",
+      "rule_id": "ast-binding",
+      "classification": "irrelevant"
     },
     {
       "id": "irrelevant:ast-jsx-close:deferred-c:fragment",
@@ -503,6 +503,13 @@
       "count": 7,
       "example": "lib/admin/checklist.ts:169",
       "rule_id": "ast-enclosing-public-function",
+      "classification": "displayed"
+    },
+    {
+      "id": "displayed:ast-jsx-consumer:payments-b-public-boundary:public-sink",
+      "count": 7,
+      "example": "app/sample-checkout/[id]/checkout.tsx:188",
+      "rule_id": "ast-jsx-consumer",
       "classification": "displayed"
     },
     {
@@ -539,13 +546,6 @@
       "example": "lib/forms/action-error.ts:18",
       "rule_id": "ast-no-public-sink",
       "classification": "internal-only"
-    },
-    {
-      "id": "irrelevant:ast-binding:listings-b-public-boundary:fragment",
-      "count": 7,
-      "example": "actions/listings.ts:115",
-      "rule_id": "ast-binding",
-      "classification": "irrelevant"
     },
     {
       "id": "displayed:ast-enclosing-public-function:deferred-c:raw-message",
@@ -1038,13 +1038,6 @@
       "classification": "duplicate"
     },
     {
-      "id": "duplicate:exact-source-repeat:journey-c-public-boundary:static-literal",
-      "count": 1,
-      "example": "actions/listings.ts:1223",
-      "rule_id": "exact-source-repeat",
-      "classification": "duplicate"
-    },
-    {
       "id": "duplicate:exact-source-repeat:journey-c-public-boundary:thrown",
       "count": 1,
       "example": "lib/services/vehicle-check-aggregator.ts:261",
@@ -1167,6 +1160,13 @@
       "id": "irrelevant:ast-signature:deferred-c:static-literal",
       "count": 1,
       "example": "app/(admin)/admin/regions/region-actions.tsx:101",
+      "rule_id": "ast-signature",
+      "classification": "irrelevant"
+    },
+    {
+      "id": "irrelevant:ast-signature:listings-b-public-boundary:static-literal",
+      "count": 1,
+      "example": "actions/listings.ts:566",
       "rule_id": "ast-signature",
       "classification": "irrelevant"
     },

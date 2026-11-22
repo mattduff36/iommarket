@@ -17,6 +17,7 @@ export function inventoryFromReconciled(reconciled: ReconciledVehicle[]): Invent
       importable: mapped.listing != null && !transmissionConflict,
       skipReason: transmissionConflict ? "source-transmission-conflict" : mapped.skipReason,
       title: mapped.listing?.title ?? null,
+      condition: mapped.listing?.condition,
       description: mapped.listing?.description ?? null,
       categorySlug: mapped.listing?.categorySlug ?? null,
       attributes: mapped.listing?.attributes ?? null,

@@ -26,7 +26,7 @@ describe("dealer registry", () => {
       .not.toContainEqual(expect.objectContaining({ key: "rex-motor-company" }));
     expect(
       DEALER_REGISTRY.filter((item) => item.status === "confirmed" || item.status === "no_public_site"),
-    ).toHaveLength(32);
+    ).toHaveLength(34);
   });
 
   it("configures Athol as NetDirector without a dealer-name branch", () => {
