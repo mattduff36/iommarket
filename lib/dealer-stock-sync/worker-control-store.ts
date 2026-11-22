@@ -10,6 +10,7 @@ const DEVICE_ID = /^dev_[A-Za-z0-9_-]{22}$/;
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
 
 export const WORKER_ACTIVITY_CODES = [
+  "vm-busy",
   "checking",
   "ready",
   "waiting",
@@ -53,6 +54,7 @@ export interface WorkerPresenceRecord {
 }
 
 export interface WorkerCommandRecord {
+  jobIds?: string[];
   id: string;
   instanceId: string;
   action: WorkerCommandAction;
@@ -146,7 +148,7 @@ if command and ack ~= '' and command.id == ack then
 end
 presence.acknowledgedCommandId = cjson.null
 savePresence()
-if command then return cjson.encode({ id = command.id, instanceId = command.instanceId, action = command.action }) end
+if command then return cjson.encode({ id = command.id, instanceId = command.instanceId, action = command.action, jobIds = command.jobIds }) end
 return ''
 `;
 
@@ -253,6 +255,12 @@ export function commandFrom(value: unknown): WorkerCommandRecord | null {
   const record = asRecord(value);
   if (!record || typeof record.id !== "string" || !UUID.test(record.id)) return null;
   if (typeof record.instanceId !== "string" || !UUID.test(record.instanceId) || !isAction(record.action)) return null;
+  if (record.jobIds !== undefined) {
+    const ids = record.jobIds;
+    if (record.action !== "start" || !Array.isArray(ids) || ids.length < 1 || ids.length > 100 ||
+        ids.some(id => typeof id !== "string" || !/^[a-z0-9]{8,40}$/.test(id)) || new Set(ids).size !== ids.length) return null;
+    return { id: record.id, instanceId: record.instanceId, action: record.action, jobIds: ids };
+  }
   return { id: record.id, instanceId: record.instanceId, action: record.action };
 }
 

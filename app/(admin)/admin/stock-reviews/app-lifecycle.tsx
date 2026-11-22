@@ -62,6 +62,7 @@ export function useStockAppLifecycle(controls: StockWorkerControl, connectedLaun
   async function execute(task: StockAppTask, temporary: boolean) {
     const target = current.current.target;
     const wasRunning = current.current.running;
+    const scopedVm = current.current.scopedVm;
     setPending(true);
     setMessage("");
     try {
@@ -69,7 +70,7 @@ export function useStockAppLifecycle(controls: StockWorkerControl, connectedLaun
       if (!ids.length) return;
       if (temporary) await launch("task", ids);
       else if (!wasRunning) {
-        const outcome = await current.current.dispatch("start", target);
+        const outcome = scopedVm ? await current.current.dispatch("start", target, ids) : await current.current.dispatch("start", target);
         if (outcome !== "ok") setMessage("Tasks are queued, but the app did not confirm starting. Check its connection before retrying.");
       }
     } catch {
@@ -81,6 +82,14 @@ export function useStockAppLifecycle(controls: StockWorkerControl, connectedLaun
   }
   const requestRun: StockAppRun = async task => {
     if (locked.current || current.current.pending || current.current.stopping) return;
+    if (current.current.scopedVm && !current.current.online) {
+      setMessage("The selected Oracle VM is offline. Reconnect it or select another computer.");
+      return;
+    }
+    if (current.current.scopedVm && current.current.running) {
+      setMessage("The VM is processing a task. Wait for it to finish before starting another.");
+      return;
+    }
     locked.current = true;
     if (current.current.online) { await execute(task, false); return; }
     await new Promise<void>(resolve => setConfirmation({ task, resolve }));

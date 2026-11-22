@@ -51,7 +51,7 @@ export function StockWorkerDashboard({ initial, jobs, readyCount, children, head
   const [selected, setSelected] = useState("");
   const [expanded, setExpanded] = useState(false);
   const devices = visibleSnapshot.ok ? visibleSnapshot.devices : [];
-  const device = devices.find(row => row.deviceId === selected && fresh(row, now)) ?? devices.find(row => fresh(row, now)) ?? devices[0];
+  const device = devices.find(row => row.deviceId === selected) ?? devices.find(row => fresh(row, now)) ?? devices[0];
   const online = visibleSnapshot.ok && Boolean(device && (connectionLost ? device.online : fresh(device, now)));
   const baseControls = useStockWorkerCommands(device, online && !connectionLost, mergeSnapshot);
   const lifecycle = useStockAppLifecycle(baseControls, devices.filter(row => row.launchId).sort((a, b) => (b.lastSeenAt ?? "").localeCompare(a.lastSeenAt ?? ""))[0]?.launchId);
@@ -68,7 +68,7 @@ export function StockWorkerDashboard({ initial, jobs, readyCount, children, head
   const latestFinished = jobs.filter(stockJobFinished).sort((left, right) => (right.startedAt ?? "").localeCompare(left.startedAt ?? ""))[0];
   const phase = device?.activity.at(-1)?.text ?? "Connected and ready";
   const busy = activeJobs.length > 0 || (online && device?.state === "running");
-  const title = connectionLost ? "Updates paused — reconnecting" : !snapshot.ok ? "Connection status unavailable" : !online ? "Start the Stock Update worker app" :
+  const title = connectionLost ? "Updates paused — reconnecting" : !snapshot.ok ? "Connection status unavailable" : !online ? (device?.scopedVm ? "Oracle Stock Update VM is offline" : "Start the Stock Update worker app") :
     device?.state === "error" ? "Worker needs attention" : device?.state === "stopping" ? "Stopping after the current job" :
     active ? `${active.kind === "APPLY" ? "Applying" : "Scanning"} · ${active.dealerName}` :
     queued === 0 && latestFinished ? stockJobOutcome(latestFinished) :
@@ -119,20 +119,20 @@ export function StockWorkerDashboard({ initial, jobs, readyCount, children, head
         <span className={`rounded-full border px-3 py-1 text-xs font-medium ${online ? "border-neon-blue-500/40 text-neon-blue-400" : "border-border text-text-secondary"}`}>{connectionLost ? "Reconnecting" : online ? "Connected" : snapshot.ok ? "Not connected" : "Unavailable"}</span>
       </div>
       <p className="text-sm text-text-secondary">{!snapshot.ok ? "Retrying connection. Check the app before starting more work." :
-        !online ? "Open Stock Update to connect to this site automatically." :
+        !online ? (device?.scopedVm ? "Reconnect the Oracle VM or choose another computer." : "Open Stock Update to connect to this site automatically.") :
         `${device?.deviceName} · ${device?.environment === "preview" ? "Preview — itrader.dev" : "Production — itrader.im"}`}</p>
       <div className="flex flex-wrap gap-3">
-        <button type="button" disabled={pending || connectionLost} onClick={() => void lifecycle.open()} className="min-h-11 rounded-md border border-neon-blue-400 px-4 text-sm text-neon-blue-400 disabled:opacity-50">Open Stock Update</button>
-        {online ? <button type="button" disabled={!controls.canCommand || pending} onClick={() => controls.command("close")} className="min-h-11 rounded-md border border-border px-4 text-sm text-text-primary disabled:opacity-50">Close app safely</button> : null}
+        <button type="button" disabled={pending || connectionLost} onClick={() => void lifecycle.open()} className="min-h-11 rounded-md border border-neon-blue-400 px-4 text-sm text-neon-blue-400 disabled:opacity-50">{device?.scopedVm ? "Open Windows Stock Update" : "Open Stock Update"}</button>
+        {online && !device?.scopedVm ? <button type="button" disabled={!controls.canCommand || pending} onClick={() => controls.command("close")} className="min-h-11 rounded-md border border-border px-4 text-sm text-text-primary disabled:opacity-50">Close app safely</button> : null}
       </div>
       {lifecycle.message ? <p role="status" className="text-sm text-text-secondary">{lifecycle.message}</p> : null}
       {lifecycle.launchFallback}
       {!online && lifecycle.launchFailed ? downloadFallback : null}
       {message && !online ? <p role="status" className="text-sm text-text-secondary">{message}</p> : null}
-      {online ? <>
       {devices.length > 1 ? <label className="block text-sm text-text-secondary">Computer <select disabled={pending} className="ml-2 rounded-md border border-border bg-surface p-2 text-text-primary" value={device?.deviceId ?? ""} onChange={event => setSelected(event.target.value)}>
         {devices.map(row => <option key={row.deviceId} value={row.deviceId}>{row.deviceName}{fresh(row, now) ? " — connected" : " — offline"}</option>)}
       </select></label> : null}
+      {online ? <>
       <div className="flex flex-wrap gap-x-5 gap-y-1 text-sm text-text-secondary"><span>{queued} queued</span><span>{activeJobs.length} processing</span><a href="#stock-review-results" className="text-neon-blue-400 hover:underline">{readyCount} ready for review</a></div>
       {queued > 0 && !running ? <p className="text-sm text-text-secondary">Queued work is ready. Click Start worker without selecting dealers to process it; select dealers only for new scans.</p> : null}
       </> : null}
