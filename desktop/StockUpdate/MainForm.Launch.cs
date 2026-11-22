@@ -11,6 +11,14 @@ public sealed partial class MainForm
 
     protected override bool ShowWithoutActivation => _webOwned;
 
+    internal void RetainWebsiteConnection()
+    {
+        // A website connection keeps the app available without restoring its window.
+        _webOwned = false;
+        _autoCloseTask = false;
+        ShowInTaskbar = true;
+    }
+
     internal void ActivateManual()
     {
         if (_shuttingDown || IsDisposed) return;
@@ -57,7 +65,7 @@ public sealed partial class MainForm
             _autoCloseTask = _webOwned && reply.CloseAfterRun;
             StartControl(reply.Session);
             task = reply.Mode == "task";
-            if (!task) ActivateManual();
+            if (!task) RetainWebsiteConnection();
             Note(task ? "Running the jobs requested by Stock Reviews." : "Connected from Stock Reviews.");
         }
         catch (Exception) { Note("Website launch could not be completed. Check Stock Reviews before trying again."); }

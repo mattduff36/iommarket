@@ -8,6 +8,7 @@ export interface DesktopEvent {
   jobId?: string;
 }
 const VEHICLE_FIELDS = [
+  "condition",
   "dealerKey", "sourceKey", "platform", "sourceVehicleId", "registration", "vin", "stockReference",
   "make", "model", "derivative", "year", "firstRegistrationDate", "mileage", "pricePence", "isPoa",
   "fuel", "transmission", "bodyType", "colour", "doors", "seats", "engineSize", "enginePower", "vehicleType",

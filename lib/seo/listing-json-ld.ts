@@ -15,6 +15,7 @@ const CONDITION_URLS: Record<string, string> = {
 };
 
 export function buildListingProductJsonLd(input: {
+  condition?: "NEW" | "USED";
   id: string;
   url: string;
   name: string;
@@ -28,7 +29,7 @@ export function buildListingProductJsonLd(input: {
 }) {
   const attribute = (slug: string) =>
     input.attributes?.find((item) => item.slug === slug)?.value?.trim() || undefined;
-  const conditionKey = attribute("condition")?.toLowerCase();
+  const conditionKey = input.condition?.toLowerCase() ?? attribute("condition")?.toLowerCase();
   const itemCondition = conditionKey ? CONDITION_URLS[conditionKey] : undefined;
   const brand = attribute("make");
   const model = attribute("model");

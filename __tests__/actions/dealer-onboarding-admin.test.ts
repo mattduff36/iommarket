@@ -203,6 +203,10 @@ describe("sendDealerOnboardingInvite", () => {
 
   it("rejects sample, unmatched, and synthetic dealers before sending email", async () => {
     mockDb.dealerPreviewPack.findMany.mockResolvedValue([]);
+    mockDb.dealerProfile.findUnique.mockResolvedValue({
+      ...dealer,
+      user: { ...dealer.user, email: "unknown@itrader.im.preview" },
+    });
     await expect(
       sendDealerOnboardingInvite({
         dealerId: dealer.id,
@@ -246,8 +250,8 @@ describe("sendDealerOnboardingInvite", () => {
     expect(sendMock).not.toHaveBeenCalled();
   });
 
-  it("keeps real founding dealers eligible in production without Preview Packs", async () => {
-    vi.stubEnv("VERCEL_ENV", "production");
+  it.each(["preview", "production"])("keeps prepared dealers eligible in %s without Preview Packs", async (environment) => {
+    vi.stubEnv("VERCEL_ENV", environment);
     mockDb.dealerPreviewPack.findMany.mockResolvedValue([]);
     sendMock.mockResolvedValue({ id: "message-1" });
 

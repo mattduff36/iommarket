@@ -9,8 +9,6 @@ public sealed partial class MainForm : Form, IWorkerControlUi
     private readonly Button _switchSite = new() { Text = "Switch to production site", AutoSize = true };
     private readonly Label _account = new() { AutoSize = true, Text = "Not signed in" };
     private readonly Label _status = new() { AutoSize = true, Text = "Idle" };
-    private readonly Label _simpleStatus = new() { AutoSize = true, Text = "Idle", MaximumSize = new Size(420, 0) };
-    private readonly Label _environment = new() { AutoSize = true, Text = "Preview - itrader.dev" };
     private readonly TextBox _activity = new()
     {
         Multiline = true,
@@ -24,9 +22,6 @@ public sealed partial class MainForm : Form, IWorkerControlUi
     private readonly Button _check = new() { Text = "Check connection", AutoSize = true };
     private readonly Button _start = new() { Text = "Start worker", AutoSize = true };
     private readonly Button _stop = new() { Text = "Stop safely", AutoSize = true };
-    private readonly Button _simpleSignIn = new() { Text = "Sign in", AutoSize = true };
-    private readonly Button _simpleStop = new() { Text = "Stop safely", AutoSize = true };
-    private readonly Button _simpleCancel = new() { Text = "Cancel sign-in", AutoSize = true, Enabled = false };
     private readonly Button _reviews = new() { Text = "Open stock reviews", AutoSize = true };
     private readonly Button _devices = new() { Text = "Manage devices", AutoSize = true };
     private readonly Button _signOut = new() { Text = "Sign out", AutoSize = true };
@@ -49,20 +44,18 @@ public sealed partial class MainForm : Form, IWorkerControlUi
     {
         _initialLaunch = initialLaunch;
         _webOwned = initialLaunch is not null;
-        if (_webOwned) { WindowState = FormWindowState.Minimized; ShowInTaskbar = false; }
-        Text = "iTrader Stock Update";
+        WindowState = FormWindowState.Minimized;
+        if (_webOwned) ShowInTaskbar = false;
+        Text = "iTrader Stock Update " + Targets.ClientVersion;
         SuspendLayout();
         AutoScaleDimensions = new SizeF(96f, 96f);
         ClientSize = new Size(520, 300);
         StartPosition = FormStartPosition.CenterScreen;
         AutoScaleMode = AutoScaleMode.Dpi;
         Font = new Font("Segoe UI", 9f);
-        foreach (var button in new[] { _stop, _simpleStop })
-        {
-            button.BackColor = Color.FromArgb(220, 38, 38);
-            button.ForeColor = Color.White;
-            button.FlatStyle = FlatStyle.Flat;
-        }
+        _stop.BackColor = Color.FromArgb(220, 38, 38);
+        _stop.ForeColor = Color.White;
+        _stop.FlatStyle = FlatStyle.Flat;
         _start.BackColor = Color.FromArgb(37, 99, 235);
         _start.ForeColor = Color.White;
         _start.FlatStyle = FlatStyle.Flat;
@@ -83,37 +76,20 @@ public sealed partial class MainForm : Form, IWorkerControlUi
         debug.Controls.Add(info);
         _debugRoot = debug;
 
-        var brand = new Label { Text = "iTrader Stock Update", AutoSize = true, Font = new Font("Segoe UI", 16f, FontStyle.Bold) };
-        var simpleButtons = new FlowLayoutPanel { AutoSize = true, AutoSizeMode = AutoSizeMode.GrowAndShrink, WrapContents = false };
-        simpleButtons.Controls.AddRange([_simpleSignIn, _simpleStop, _simpleCancel]);
-        var simple = new FlowLayoutPanel
-        {
-            Dock = DockStyle.Fill,
-            FlowDirection = FlowDirection.TopDown,
-            WrapContents = false,
-            Padding = new Padding(16),
-            AutoScroll = true
-        };
-        simple.Controls.AddRange([brand, _environment, _simpleStatus, simpleButtons]);
-        _simpleRoot = simple;
-
+        _simpleRoot = CreateBrandPanel();
         Controls.Add(debug);
-        Controls.Add(simple);
-        var siteBar = new FlowLayoutPanel { Dock = DockStyle.Bottom, AutoSize = true, AutoSizeMode = AutoSizeMode.GrowAndShrink, WrapContents = false, FlowDirection = FlowDirection.RightToLeft, Padding = new Padding(8) };
-        siteBar.Controls.Add(_switchSite);
-        Controls.Add(siteBar);
+        Controls.Add(_simpleRoot);
+        // Operational controls are available only through View > Debug layout.
+        buttons.Controls.Add(_switchSite);
         Controls.Add(menu);
         _switchSite.Click += (_, _) => SwitchSite();
         var preferences = AppPreferences.Load();
         _debugLayout.Checked = preferences.DebugLayout;
         _cancel.Click += (_, _) => _http.Cancel();
-        _simpleCancel.Click += (_, _) => _http.Cancel();
         _signIn.Click += async (_, _) => await SignInAsync();
-        _simpleSignIn.Click += async (_, _) => await SignInAsync();
         _check.Click += async (_, _) => await StartModeAsync("check", confirmProduction: false);
         _start.Click += async (_, _) => await StartModeAsync("watch", confirmProduction: true);
         _stop.Click += async (_, _) => await StopAsync(local: true);
-        _simpleStop.Click += async (_, _) => await StopAsync(local: true);
         _reviews.Click += (_, _) => OpenFixed("/admin/stock-reviews", null);
         _devices.Click += (_, _) => OpenFixed("/admin/stock-worker", null);
         _signOut.Click += async (_, _) => await SignOutAsync();
@@ -143,8 +119,8 @@ public sealed partial class MainForm : Form, IWorkerControlUi
         ClientSize = contentSize;
         if (IsHandleCreated) MinimumSize = SizeFromClientSize(contentSize);
         Text = debug
-            ? "iTrader Stock Update - " + Targets.WireName(Selected) + " (" + Targets.Host(Selected) + ")"
-            : "iTrader Stock Update";
+            ? "iTrader Stock Update " + Targets.ClientVersion + " - " + Targets.WireName(Selected) + " (" + Targets.Host(Selected) + ")"
+            : "iTrader Stock Update " + Targets.ClientVersion;
     }
 
     protected override void OnLoad(EventArgs e)
@@ -165,9 +141,8 @@ public sealed partial class MainForm : Form, IWorkerControlUi
 
     private void LoadEnvironment()
     {
-        _environment.Text = (Selected == AppEnvironment.Production ? "Production - " : "Preview - ") + Targets.Host(Selected);
         if (_debugLayout.Checked)
-            Text = "iTrader Stock Update - " + Targets.WireName(Selected) + " (" + Targets.Host(Selected) + ")";
+            Text = "iTrader Stock Update " + Targets.ClientVersion + " - " + Targets.WireName(Selected) + " (" + Targets.Host(Selected) + ")";
         _session = _store.TryLoad(Selected);
         _account.Text = _session is null ? "Not signed in" : _session.Account.Name + " (" + _session.Account.Email + ")";
         SetStatus(_session is null ? "Not signed in" : "Checking saved sign-in");
@@ -182,17 +157,11 @@ public sealed partial class MainForm : Form, IWorkerControlUi
         _switchSite.Text = Selected == AppEnvironment.Preview ? "Switch to production site" : "Switch to preview site";
         _signIn.Enabled = !running && !_busy;
         _signIn.Text = _session is null ? "Sign in" : _connected ? "Open Stock Reviews" : "Reconnect";
-        _simpleSignIn.Enabled = !_busy;
-        _simpleSignIn.Text = _signIn.Text;
         _cancel.Enabled = _busy && !running;
-        _simpleCancel.Enabled = _busy && !running;
         _signOut.Enabled = !running && !_busy && _session is not null;
         _check.Enabled = !running && !_busy && _session is not null;
         _start.Enabled = !running && !_busy && _session is not null;
         _stop.Enabled = stoppable;
-        _simpleStop.Enabled = stoppable;
-        _simpleStop.Visible = stoppable;
-        _simpleCancel.Visible = _busy && !running;
     }
 
     private async Task SignInAsync()
@@ -388,7 +357,6 @@ public sealed partial class MainForm : Form, IWorkerControlUi
         var paused = _control?.State.Paused == true;
         var runner = _runner;
         _stop.Enabled = false;
-        _simpleStop.Enabled = false;
         if (runner is null)
         {
             _control?.State.MarkStopped();
@@ -566,7 +534,6 @@ public sealed partial class MainForm : Form, IWorkerControlUi
     private void SetStatus(string text)
     {
         _status.Text = text;
-        _simpleStatus.Text = text;
     }
 
     private void RestartHttp()

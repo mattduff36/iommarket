@@ -1,6 +1,7 @@
 export const MARKETPLACE_EVENTS = [
   "search_performed",
   "listing_viewed",
+  "dealer_stock_link_clicked",
   "contact_seller_submitted",
   "signup_completed",
   "listing_submitted",

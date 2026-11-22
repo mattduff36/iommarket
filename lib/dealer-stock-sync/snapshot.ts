@@ -1,5 +1,5 @@
 import { Prisma } from "@prisma/client";
-import { getDealerListingCap } from "@/lib/config/dealer-tiers";
+import { preparedStockCap } from "./prepared-stock-cap";
 import { db } from "@/lib/db";
 import type { FingerprintSnapshot } from "@/lib/dealer-stock-sync/fingerprint";
 import type { SyncIdentity, SyncListing } from "@/lib/dealer-stock-sync/types";
@@ -47,6 +47,7 @@ export async function loadStockSyncSnapshot(
         title: true,
         description: true,
         status: true,
+        condition: true,
         price: true,
         featured: true,
         expiresAt: true,
@@ -76,6 +77,7 @@ export async function loadStockSyncSnapshot(
     title: listing.title,
     description: listing.description,
     status: listing.status,
+    condition: listing.condition,
     price: listing.price,
     mileage: mileageOf(listing.attributeValues),
     featured: listing.featured,
@@ -122,9 +124,10 @@ export async function loadStockSyncSnapshot(
       verifiedAt: dealer.stockSourceBinding.verifiedAt?.toISOString() ?? null,
     },
     activeListingCount,
-    listingCap: getDealerListingCap(dealer.tier),
+    listingCap: preparedStockCap({ tier: dealer.tier, dealerId: dealer.id, registryKey: dealer.stockSourceBinding.registryKey }),
     listings: syncListings,
     identities,
     actions,
   };
 }
+

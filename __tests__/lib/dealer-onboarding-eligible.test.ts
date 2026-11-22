@@ -27,6 +27,11 @@ function dealer(
 
 describe("dealer onboarding eligibility", () => {
   it.each([
+    ["handh-motorcycles", "handhmotorcycles@itrader.im.preview"],
+    ["isle-of-man-motorcycles", "isleofmanmotorcycles@itrader.im.preview"],
+    ["bvs-vehicles", "bvsvehicles@itrader.im.preview"],
+    ["van-mossel-jacksons", "vanmosseljacksons@itrader.im.preview"],
+    ["van-mossel-motor-mall", "vanmosselmotormall@itrader.im.preview"],
     ["swift-motors", "swiftmotors@itrader.im.preview"],
     ["manx-car-warehouse", "manxcarwarehouse@itrader.im.preview"],
   ])("allows prepared %s accounts with genuine authentication in production", (key, email) => {
@@ -39,7 +44,8 @@ describe("dealer onboarding eligibility", () => {
     });
     expect(isOnboardingEligibleDealer(preparedDealer, [], "production")).toBe(true);
     expect(isOnboardingEligibleDealer(preparedDealer, [key], "preview")).toBe(true);
-    expect(isOnboardingEligibleDealer(preparedDealer, [], "preview")).toBe(false);
+    expect(isOnboardingEligibleDealer(preparedDealer, [], "preview")).toBe(true);
+    expect(JSON.stringify(onboardingEligibleDealerWhere([], now, "preview"))).toContain(email);
     expect(isOnboardingEligibleDealer(preparedDealer, [key], undefined)).toBe(false);
     expect(isOnboardingEligibleDealer({ ...preparedDealer, isAdminPreview: true }, [key], "production")).toBe(false);
     expect(isOnboardingEligibleDealer({
@@ -48,7 +54,7 @@ describe("dealer onboarding eligibility", () => {
     }, [key], "production")).toBe(false);
   });
 
-  it("includes an enabled preview pack only when its founding account can be claimed", () => {
+  it("includes a prepared account independently of preview packs", () => {
     const where = onboardingEligibleDealerWhere(
       ["athol-garage"],
       now,
@@ -134,17 +140,12 @@ describe("dealer onboarding eligibility", () => {
     ).toBe(false);
   });
 
-  it("hides disabled packs, unmatched packs, sample dealers, and synthetic preview profiles", () => {
-    expect(onboardingEligibleDealerWhere([], now, "preview")).toEqual({
-      id: { in: [] },
-    });
-    expect(
-      onboardingEligibleDealerWhere(["unknown-dealer"], now, "preview"),
-    ).toEqual({ id: { in: [] } });
-    expect(isOnboardingEligibleDealer(dealer(), [], "preview")).toBe(false);
+  it("keeps prepared accounts visible while excluding sample and synthetic profiles", () => {
+    expect(JSON.stringify(onboardingEligibleDealerWhere([], now, "preview"))).toContain("atholgarage@itrader.im.preview");
+    expect(isOnboardingEligibleDealer(dealer(), [], "preview")).toBe(true);
     expect(
       isOnboardingEligibleDealer(dealer(), ["mikes-motors"], "preview"),
-    ).toBe(false);
+    ).toBe(true);
     expect(
       isOnboardingEligibleDealer(
         dealer({

@@ -7,6 +7,7 @@ import { SEARCH_SORT_OPTIONS } from "@/lib/search/search-order";
 import { normalizeNumericFilterUnits } from "@/lib/search/numeric-filter-units";
 
 export const SEARCH_KEYS = [
+  "condition",
   "q",
   "category",
   "region",
@@ -70,6 +71,7 @@ function normalizeSearchValue(
   const normalized = value?.trim().slice(0, MAX_SEARCH_VALUE_LENGTH);
   if (!normalized) return undefined;
 
+  if (key === "condition" && normalized !== "NEW" && normalized !== "USED") return undefined;
   if (key === "page") {
     if (!/^\d+$/.test(normalized)) return undefined;
     const page = Number.parseInt(normalized, 10);

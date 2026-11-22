@@ -36,6 +36,7 @@ export default async function DealerProfileManagePage() {
       <DealerProfileForm
         initialData={{
           name: user.dealerProfile.name,
+          showStockSourceLinks: user.dealerProfile.tier === "PRO" ? user.dealerProfile.showStockSourceLinks : undefined,
           slug: user.dealerProfile.slug,
           bio: user.dealerProfile.bio,
           website: user.dealerProfile.website,

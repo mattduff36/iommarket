@@ -284,6 +284,7 @@ export async function executeCreateListingSubmit(params: {
   try {
   const listingPayload = {
     title: params.form.get("title") as string,
+    condition: (params.form.get("condition") === "NEW" ? "NEW" : "USED") as "NEW" | "USED",
     description: params.form.get("description") as string,
     price: Math.round(parseFloat(params.form.get("price") as string) * 100),
     categoryId: params.form.get("categoryId") as string,

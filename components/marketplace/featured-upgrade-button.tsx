@@ -9,6 +9,8 @@ import {
   useRippleDemoCheckout,
 } from "@/components/payments/ripple-demo-checkout-dialog";
 import { isUncertainActionResult, UNCERTAIN_CHECKOUT_MESSAGE } from "@/lib/forms/outcome-uncertainty";
+import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
+import { isRippleDemoCheckoutUrl } from "@/lib/payments/demo-checkout";
 import { Star } from "lucide-react";
 import { formatGbpFromPence } from "@/lib/formatting/gbp";
 import { PaymentAwaitingStatus } from "@/components/payments/payment-awaiting-status";
@@ -35,10 +37,17 @@ export function FeaturedUpgradeButton({
   const [error, setError] = useState<string | null>(null);
   const [uncertain, setUncertain] = useState(false);
   const [isAwaitingPayment, setIsAwaitingPayment] = useState(false);
+  const [checkoutUrl, setCheckoutUrl] = useState<string | null>(null);
+  const [opened, setOpened] = useState(false);
+  const [showStatus, setShowStatus] = useState(false);
   const pendingCopy = "This purchase activates after the listing is approved.";
 
   function handleUpgrade() {
     if (submitLock.current || checkoutUnavailable || uncertain) return;
+    if (checkoutUrl) {
+      setShowStatus(true);
+      return;
+    }
     submitLock.current = true;
     setError(null);
     startTransition(async () => {
@@ -54,7 +63,14 @@ export function FeaturedUpgradeButton({
           return;
         }
         if (result.data?.checkoutUrl) {
-          openCheckout(result.data.checkoutUrl);
+          const url = result.data.checkoutUrl;
+          const didOpen = openCheckout(url);
+          if (!isRippleDemoCheckoutUrl(url)) {
+            setCheckoutUrl(url);
+            setDemoDialogOpen(false);
+            setOpened(Boolean(didOpen));
+            setShowStatus(true);
+          }
           setIsAwaitingPayment(true);
         } else { setUncertain(true); setError(UNCERTAIN_CHECKOUT_MESSAGE); }
       } catch {
@@ -65,6 +81,24 @@ export function FeaturedUpgradeButton({
       }
     });
   }
+
+  const statusDialog = (
+    <Dialog open={showStatus} onOpenChange={setShowStatus}>
+      <DialogContent>
+        <DialogTitle>{opened ? "Complete your Featured upgrade" : "Open your payment page"}</DialogTitle>
+        <DialogDescription>
+          {opened ? "Your payment page opened in another tab. If you cannot find it, use either link below."
+            : "Your browser may have blocked the payment tab. Allow pop-ups for this site in your browser settings, or continue in this tab."}
+        </DialogDescription>
+        {checkoutUrl && <div className="flex flex-wrap gap-3">
+          <Button asChild><a href={checkoutUrl} target="_blank" rel="noopener noreferrer">Open payment page</a></Button>
+          <Button asChild variant="ghost"><a href={checkoutUrl}>Continue in this tab</a></Button>
+        </div>}
+        <PaymentAwaitingStatus sampleCheckoutId={sampleCheckoutId} isAwaitingPayment={isAwaitingPayment}
+          message="Featured placement updates after payment is confirmed." />
+      </DialogContent>
+    </Dialog>
+  );
 
   if (variant === "inline") {
     return (
@@ -77,7 +111,7 @@ export function FeaturedUpgradeButton({
           disabled={checkoutUnavailable || uncertain}
           loading={isPending}
           aria-busy={isPending || undefined}
-          className="text-premium-gold-400 hover:text-premium-gold-500"
+          className="w-full bg-premium-gold-400 text-black hover:bg-premium-gold-500 hover:text-black sm:w-auto"
           title="Upgrade to featured"
         >
           <Star className="h-3.5 w-3.5" />
@@ -97,10 +131,7 @@ export function FeaturedUpgradeButton({
           </ReportableError>
         )}
         {uncertain ? <a href={`/listings/${listingId}`} className="text-text-trust underline">Check Featured status</a> : null}
-      <PaymentAwaitingStatus sampleCheckoutId={sampleCheckoutId}
-          isAwaitingPayment={isAwaitingPayment}
-          message="Checkout is open in another tab. This page will update when the payment service confirms the featured upgrade."
-        />
+      {statusDialog}
         <RippleDemoCheckoutDialog
           open={demoDialogOpen}
           onOpenChange={setDemoDialogOpen}
@@ -150,10 +181,7 @@ export function FeaturedUpgradeButton({
         </ReportableError>
       )}
       {uncertain ? <a href={`/listings/${listingId}`} className="text-text-trust underline">Check Featured status</a> : null}
-      <PaymentAwaitingStatus sampleCheckoutId={sampleCheckoutId}
-        isAwaitingPayment={isAwaitingPayment}
-        message="Checkout is open in another tab. This page will update when the payment service confirms the featured upgrade."
-      />
+      {statusDialog}
       <RippleDemoCheckoutDialog
         open={demoDialogOpen}
         onOpenChange={setDemoDialogOpen}

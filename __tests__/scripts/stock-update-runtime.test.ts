@@ -5,6 +5,7 @@ import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { assertRuntimeSource, assertRuntimePackage, assertRuntimeLock, verifyRuntimePayload, verifyNoPrivateFiles } from "@/scripts/stock-update-desktop/runtime-boundary.mjs";
+import { readFileSync } from "node:fs";
 
 const roots: string[] = [];
 const source = "scripts/dealer-stock-sync/desktop-access.ts";
@@ -19,6 +20,10 @@ function fixture() {
 afterEach(() => { for (const root of roots.splice(0)) rmSync(root, { recursive: true, force: true }); });
 
 describe("credential-free desktop export boundary", () => {
+  it.each(["nuxt-data", "handh", "van-mossel"])("accepts reviewed new dealer connector %s without server credentials", name => {
+    const path = `scripts/dealer-stock-sync/connectors/${name}.ts`;
+    expect(() => assertRuntimeSource(path, readFileSync(path, "utf8"))).not.toThrow();
+  });
   it("accepts the reviewed source and actual clean payload", () => {
     assertRuntimeSource(source, content); assertRuntimeSource(source.replaceAll("/", "\\"), content);
     for (const name of ["tsx", "sharp", "@playwright/test"]) assertRuntimePackage(name);

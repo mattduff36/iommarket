@@ -19,6 +19,7 @@ const CONNECTOR_PHOTO_CDNS: Partial<Record<ConnectorKey, readonly DesktopUrlRule
   "click-dealer": [CLICK_DEALER_CDN],
   netdirector: [NETDIRECTOR_IMAGE_CDN, NETDIRECTOR_S3],
   dragon2000: [DRAGON_CDN],
+  "van-mossel": [{ host: "vanmossel.images.ilsa.cloud" }],
 };
 
 const DEALER_PHOTO_CDNS: Readonly<Record<string, readonly DesktopUrlRule[]>> = {

@@ -13,12 +13,16 @@ import {
 
 export function AdminListingFilters({
   query,
+  featured,
+  condition,
   status,
   sort,
   direction,
   tools,
 }: {
   query: string;
+  featured?: "yes" | "no";
+  condition?: string;
   status: AdminListingStatusFilter;
   sort?: string;
   direction?: string;
@@ -48,6 +52,14 @@ export function AdminListingFilters({
               {value === "ALL" ? "All statuses" : value}
             </option>
           ))}
+        </select>
+        <select name="condition" aria-label="Vehicle condition" defaultValue={condition ?? ""} className="h-9 rounded-md border border-border bg-canvas px-3 text-sm text-text-primary" onChange={(event) => event.currentTarget.form?.requestSubmit()}><option value="">All conditions</option><option value="NEW">New</option><option value="USED">Used</option><option value="REVIEW">Needs condition review</option></select>
+        <select name="featured" aria-label="Featured placement" defaultValue={featured ?? ""}
+          className="h-9 rounded-md border border-border bg-canvas px-3 text-sm text-text-primary"
+          onChange={(event) => event.currentTarget.form?.requestSubmit()}>
+          <option value="">All placements</option>
+          <option value="yes">Featured</option>
+          <option value="no">Not featured</option>
         </select>
         <button type="submit" className={adminSearchButtonClass}>
           Filter

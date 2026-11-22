@@ -327,6 +327,7 @@ export default async function SearchPage({ searchParams }: Props) {
         ? { categoryId: selectedCategory.id }
         : { category: { slug: requested.category } }
       : {}),
+    ...(sp.condition === "NEW" || sp.condition === "USED" ? { condition: sp.condition as "NEW" | "USED" } : {}),
     ...(sp.featured === "true" ? { featured: true } : {}),
     ...(sp.region ? { region: { slug: sp.region } } : {}),
     ...(minPricePence !== undefined || maxPricePence !== undefined
@@ -432,7 +433,7 @@ export default async function SearchPage({ searchParams }: Props) {
     fuelType: fuelTypeFilter, transmission: sp.transmission,
     driveType: sp.driveType, sellerType: sp.sellerType, location: sp.location,
     includeSold: sp.includeSold,
-    sort: sp.sort, featured: sp.featured,
+    sort: sp.sort, featured: sp.featured, condition: sp.condition,
     minEngineSize: sp.minEngineSize, maxEngineSize: sp.maxEngineSize,
     minEnginePower: sp.minEnginePower, maxEnginePower: sp.maxEnginePower,
     minBatteryRange: sp.minBatteryRange, maxBatteryRange: sp.maxBatteryRange,
@@ -530,6 +531,7 @@ export default async function SearchPage({ searchParams }: Props) {
             title: listing.title,
             price: listing.price,
             featured: listing.featured,
+      condition: listing.condition,
             isFavourite: favouriteListingIds.has(listing.id),
             sold: listing.status === "SOLD",
             photo: toListingPhotoSource(listing.images[0]),

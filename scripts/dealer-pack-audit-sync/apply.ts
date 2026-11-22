@@ -345,6 +345,7 @@ async function applyReplace(input: {
           dealerKey: input.action.dealerKey,
           sourceRunId: input.action.sourceRunId,
           identityKey: planned.identityKey,
+          sourceUrl: planned.sourceUrl,
           listing: planned.listing,
           images,
           catalog: input.catalog,

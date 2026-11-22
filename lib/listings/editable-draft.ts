@@ -5,6 +5,7 @@ import { isInPlaceEditable, usesPendingRevision } from "@/lib/listings/visibilit
 export interface EditableDraft {
   id: string;
   title: string;
+  condition?: "NEW" | "USED";
   description: string;
   price: number;
   categoryId: string;
@@ -89,7 +90,7 @@ export async function getEditableDraft({
     },
   });
 
-  if (!listing || listing.stockReviewHeld) return null;
+  if (!listing || listing.ownerArchivedAt || listing.stockReviewHeld) return null;
   if (!isInPlaceEditable(listing.status) && !usesPendingRevision(listing.status)) {
     return null;
   }
@@ -102,6 +103,7 @@ export async function getEditableDraft({
     return {
       id: listing.id,
       title: revision.title,
+      condition: revision.condition,
       description: revision.description,
       price: revision.price / 100,
       categoryId: revision.categoryId,
@@ -123,6 +125,7 @@ export async function getEditableDraft({
   return {
     id: listing.id,
     title: listing.title,
+    condition: listing.condition,
     description: listing.description,
     price: listing.price / 100,
     categoryId: listing.categoryId,

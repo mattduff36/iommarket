@@ -1,5 +1,6 @@
 "use client";
 
+import { deleteMyDraft } from "@/actions/delete-draft";
 import { ReportableError } from "@/components/monitoring/reportable-error";
 import { useRef, useState } from "react";
 import { useNavigationRouter as useRouter } from "@/components/navigation/navigation-pending";
@@ -16,7 +17,7 @@ import {
 import { FeaturedUpgradeButton } from "@/components/marketplace/featured-upgrade-button";
 import { getDraftEditorHref } from "@/lib/listings/draft-editor";
 
-type PendingAction = "sold" | "withdraw" | "renew";
+type PendingAction = "sold" | "withdraw" | "renew" | "delete";
 
 interface AccountListingActionsProps {
   listingId: string;
@@ -32,6 +33,7 @@ interface AccountListingActionsProps {
 }
 
 const CONFIRMATION = {
+  delete: { title: "Delete draft", description: "Delete this draft? This cannot be undone. Payment and publication history will be retained where applicable.", confirmLabel: "Delete draft", pendingLabel: "Deleting draft…" },
   sold: {
     title: "Mark as sold",
     description: "Mark this listing as SOLD? This cannot be undone.",
@@ -65,7 +67,7 @@ export function AccountListingActions({
   const router = useRouter();
   const submitLock = useRef(false);
   const [pending, setPending] = useState<PendingAction | null>(null);
-  const [confirm, setConfirm] = useState<"sold" | "withdraw" | null>(null);
+  const [confirm, setConfirm] = useState<"sold" | "withdraw" | "delete" | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
 
@@ -126,6 +128,14 @@ export function AccountListingActions({
         return;
       }
       router.push(editHref);
+      router.refresh();
+    });
+  }
+
+  function confirmDelete() {
+    void runAction("delete", async () => {
+      const result = await deleteMyDraft({ listingId, expectedRevision: lifecycleRevision });
+      if (result.error) { setError(result.error); return; }
       router.refresh();
     });
   }
@@ -191,6 +201,10 @@ export function AccountListingActions({
                   href: editHref,
                 }
               : null,
+            status === "DRAFT" ? {
+              kind: "command", id: "delete", label: "Delete draft", destructive: true,
+              onSelect: () => setConfirm("delete"),
+            } : null,
             status === "EXPIRED"
               ? {
                   kind: "command",
@@ -237,12 +251,12 @@ export function AccountListingActions({
             if (!open) setConfirm(null);
           }}
           title={confirmation.title}
-          description={confirmation.description}
+          description={confirm === "delete" ? `Delete “${title}”? ${confirmation.description}` : confirmation.description}
           confirmLabel={confirmation.confirmLabel}
           pendingLabel={confirmation.pendingLabel}
           destructive
           pending={pending !== null}
-          onConfirm={confirm === "sold" ? confirmSold : confirmWithdraw}
+          onConfirm={confirm === "delete" ? confirmDelete : confirm === "sold" ? confirmSold : confirmWithdraw}
         />
       ) : null}
     </div>

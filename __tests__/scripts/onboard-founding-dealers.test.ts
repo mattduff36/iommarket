@@ -185,8 +185,13 @@ describe("FDP-SAFE-001 production targeting", () => {
 });
 
 describe("FDP-EMAIL-001 fake founding emails", () => {
-  it("allows only the eight compacted @itrader.im.preview addresses", () => {
+  it("allows only the prepared @itrader.im.preview addresses", () => {
     expect(foundingEmails()).toEqual([
+      "handhmotorcycles@itrader.im.preview",
+      "isleofmanmotorcycles@itrader.im.preview",
+      "bvsvehicles@itrader.im.preview",
+      "vanmosseljacksons@itrader.im.preview",
+      "vanmosselmotormall@itrader.im.preview",
       "atholgarage@itrader.im.preview",
       "mikesmotors@itrader.im.preview",
       "rexmotorcompany@itrader.im.preview",

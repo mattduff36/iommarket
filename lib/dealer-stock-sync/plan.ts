@@ -200,7 +200,9 @@ function presentListingAction(
       ? { field: "mileage" as const, before: listing.mileage, after: vehicle.mileage }
       : null,
   ].filter((change) => change != null);
-  if (changes.length === 0) {
+  const conditionChange = vehicle.condition && listing.condition && vehicle.condition !== listing.condition
+    ? { before: listing.condition, after: vehicle.condition } : undefined;
+  if (changes.length === 0 && !conditionChange) {
     return {
       action: {
         kind: "unchanged",
@@ -213,6 +215,7 @@ function presentListingAction(
   return {
     action: {
       kind: "update",
+      ...(conditionChange ? { conditionChange } : {}),
       sourceIdentityKey: vehicle.sourceIdentityKey ?? "",
       listingId: listing.id,
       changes,
@@ -290,6 +293,7 @@ function newVehicleAction(
       sourceIdentityKey: key,
       listingId: null,
       title: vehicle.title,
+      condition: vehicle.condition ?? "USED",
       description: vehicle.description,
       pricePence: vehicle.pricePence,
       categorySlug: vehicle.categorySlug,

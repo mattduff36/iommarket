@@ -143,6 +143,18 @@ import {
 } from "@/actions/payments";
 
 describe("payForListing", () => {
+  it("rejects owner-deleted drafts before creating checkout or payment records", async () => {
+    mockDb.listing.findUnique.mockResolvedValue({
+      id: "caaaaaaaaaaaaaaaaaaaaaaaa", userId: "user_123", status: "TAKEN_DOWN",
+      ownerArchivedAt: new Date(),
+    });
+    expect(await payForListing({ listingId: "caaaaaaaaaaaaaaaaaaaaaaaa", privateSellerTermsAccepted: true })).toHaveProperty("error");
+    expect(await upgradeFeatured("caaaaaaaaaaaaaaaaaaaaaaaa")).toHaveProperty("error");
+    expect(persistCheckoutAttemptMock).not.toHaveBeenCalled();
+    expect(mockDb.payment.create).not.toHaveBeenCalled();
+    expect(createListingCheckoutMock).not.toHaveBeenCalled();
+    expect(createFeaturedUpgradeCheckoutMock).not.toHaveBeenCalled();
+  });
   it("rejects stale checkout and featured-upgrade requests for a recalled dealer draft before payment side effects", async () => {
     mockDb.listing.findUnique.mockResolvedValue({ id: "caaaaaaaaaaaaaaaaaaaaaaaa", userId: "user_123", status: "DRAFT", stockReviewHeld: true });
     expect(await payForListing({ listingId: "caaaaaaaaaaaaaaaaaaaaaaaa", privateSellerTermsAccepted: true })).toMatchObject({ error: expect.stringContaining("pulled back") });

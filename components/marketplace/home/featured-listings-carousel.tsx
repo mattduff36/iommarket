@@ -11,6 +11,7 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/cn";
 
 export interface FeaturedListingsCarouselItem {
+  condition?: "NEW" | "USED";
   id: string;
   title: string;
   price: number;
@@ -250,6 +251,7 @@ export function FeaturedListingsCarousel({
                 >
                   <ListingCard
                     title={listing.title}
+                    condition={listing.condition}
                     price={listing.price}
                     photo={listing.photo}
                     location={listing.location}

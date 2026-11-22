@@ -88,7 +88,7 @@ export default async function AccountListingsPage({ searchParams }: Props) {
 
   const where = {
     userId: user.id,
-    stockReviewHeld: false,
+    ownerArchivedAt: null, stockReviewHeld: false,
     ...(status === "DRAFT" ? { OR: [{ status: "DRAFT" as const }, { revisions: { some: { status: "DRAFT" as const } } }] } : status !== "ALL" ? { status } : {}),
   };
 

@@ -1,0 +1,105 @@
+{
+  "id": "285009710-1",
+  "slug": "vespa-gts-310-super-sport-eu5-gts-310-supersport-eu5-24my",
+  "brand": "Vespa",
+  "model": "GTS",
+  "condition": {
+    "formatted": {
+      "key": "used"
+    },
+    "odometer": {
+      "formatted": "1,500 miles",
+      "value": 1500,
+      "value_in_km": 2414,
+      "unit": {
+        "key": "mi"
+      }
+    }
+  },
+  "type": "310 SUPER SPORT EU5+GTS 310 SuperSport EU5+ (24MY)",
+  "year": null,
+  "advertiser": {
+    "id": "VMV0847",
+    "name": "Van Mossel Isle of Man Motorcycles",
+    "country": "im",
+    "legalCompanyName": null,
+    "advertiserText": "Van Mossel Isle of Man Motorcycles, (IM)",
+    "distanceToUser": null
+  },
+  "price": {
+    "purchase": {
+      "formatted": "£4,995",
+      "original": {
+        "amount": 5995,
+        "formattedAmount": "£5,995"
+      },
+      "discount": {
+        "amount": 1000,
+        "isDiscounted": true
+      },
+      "suffix": ""
+    },
+    "business_lease": null,
+    "business_finance": null,
+    "private_finance": null,
+    "private_lease": null
+  },
+  "tracking": {},
+  "specs": [
+    {
+      "type": "mileage",
+      "value": "1,500 miles"
+    },
+    {
+      "type": "fuel",
+      "value": "Petrol"
+    }
+  ],
+  "image": {
+    "title": "Vespa GTS 310 SUPER SPORT EU5+GTS 310 SuperSport EU5+ (24MY)",
+    "type": "image",
+    "src": "https://vanmossel.images.ilsa.cloud/902bba59-694a-48f6-ae4d-c7bc6e1e7220.webp",
+    "srcset": "https://vanmossel.images.ilsa.cloud/902bba59-694a-48f6-ae4d-c7bc6e1e7220.webp 320w, https://vanmossel.images.ilsa.cloud/4c7701ff-1e48-47fd-b2bb-2fff051d8ad6.webp 480w, https://vanmossel.images.ilsa.cloud/41cff4fa-6f96-4b02-a46b-61dce3166430.webp 640w, https://vanmossel.images.ilsa.cloud/58a14ef7-4133-4519-9d0e-9845591bfe1b.webp 1024w, https://vanmossel.images.ilsa.cloud/941b478a-521f-4043-a4bb-cd75ba3034fc.webp 1440w"
+  },
+  "images": [
+    {
+      "title": "Vespa GTS 310 SUPER SPORT EU5+GTS 310 SuperSport EU5+ (24MY)",
+      "type": "image",
+      "src": "https://vanmossel.images.ilsa.cloud/902bba59-694a-48f6-ae4d-c7bc6e1e7220.webp",
+      "srcset": "https://vanmossel.images.ilsa.cloud/902bba59-694a-48f6-ae4d-c7bc6e1e7220.webp 320w, https://vanmossel.images.ilsa.cloud/4c7701ff-1e48-47fd-b2bb-2fff051d8ad6.webp 480w, https://vanmossel.images.ilsa.cloud/41cff4fa-6f96-4b02-a46b-61dce3166430.webp 640w, https://vanmossel.images.ilsa.cloud/58a14ef7-4133-4519-9d0e-9845591bfe1b.webp 1024w, https://vanmossel.images.ilsa.cloud/941b478a-521f-4043-a4bb-cd75ba3034fc.webp 1440w"
+    },
+    {
+      "title": "Vespa GTS 310 SUPER SPORT EU5+GTS 310 SuperSport EU5+ (24MY)",
+      "type": "image",
+      "src": "https://vanmossel.images.ilsa.cloud/a256f68c-6693-402d-b07c-e2499b23a3cb.webp",
+      "srcset": "https://vanmossel.images.ilsa.cloud/a256f68c-6693-402d-b07c-e2499b23a3cb.webp 1440w"
+    },
+    {
+      "title": "Vespa GTS 310 SUPER SPORT EU5+GTS 310 SuperSport EU5+ (24MY)",
+      "type": "image",
+      "src": "https://vanmossel.images.ilsa.cloud/7d97c801-c574-47e2-b3a9-f7ca776a7789.webp",
+      "srcset": "https://vanmossel.images.ilsa.cloud/7d97c801-c574-47e2-b3a9-f7ca776a7789.webp 1440w"
+    },
+    {
+      "title": "Vespa GTS 310 SUPER SPORT EU5+GTS 310 SuperSport EU5+ (24MY)",
+      "type": "image",
+      "src": "https://vanmossel.images.ilsa.cloud/1f303491-fb57-4d07-b402-40aecb4d32af.webp",
+      "srcset": "https://vanmossel.images.ilsa.cloud/1f303491-fb57-4d07-b402-40aecb4d32af.webp 1440w"
+    },
+    {
+      "title": "Vespa GTS 310 SUPER SPORT EU5+GTS 310 SuperSport EU5+ (24MY)",
+      "type": "image",
+      "src": "https://vanmossel.images.ilsa.cloud/cee0f1b2-3bd2-4261-9f04-cf7d8ad2cd5f.webp",
+      "srcset": "https://vanmossel.images.ilsa.cloud/cee0f1b2-3bd2-4261-9f04-cf7d8ad2cd5f.webp 1440w"
+    },
+    {
+      "title": "Vespa GTS 310 SUPER SPORT EU5+GTS 310 SuperSport EU5+ (24MY)",
+      "type": "image",
+      "src": "https://vanmossel.images.ilsa.cloud/fc408217-d1f9-4d6b-aefc-b783e53688ea.webp",
+      "srcset": "https://vanmossel.images.ilsa.cloud/fc408217-d1f9-4d6b-aefc-b783e53688ea.webp 1440w"
+    }
+  ],
+  "detailLink": "/",
+  "emissions": [],
+  "managersSpecial": null
+}

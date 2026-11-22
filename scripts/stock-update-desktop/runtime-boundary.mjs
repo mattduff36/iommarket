@@ -3,7 +3,7 @@ import { lstatSync, readdirSync, readFileSync } from "node:fs";
 import { createHash } from "node:crypto";
 import { resolve } from "node:path";
 
-export const CLIENT_VERSION = "1.1.14";
+export const CLIENT_VERSION = "1.1.15";
 export const ALLOWED_RUNTIME_SOURCES = new Set([
   "scripts/dealer-stock-sync/desktop-worker.ts",
   "scripts/dealer-stock-sync/desktop-jobs-client.ts",
@@ -12,6 +12,9 @@ export const ALLOWED_RUNTIME_SOURCES = new Set([
   "scripts/dealer-stock-sync/registry.ts",
   "scripts/dealer-stock-sync/pipeline.ts",
   "scripts/dealer-stock-sync/connectors/detect.ts",
+  "scripts/dealer-stock-sync/connectors/nuxt-data.ts",
+  "scripts/dealer-stock-sync/connectors/handh.ts",
+  "scripts/dealer-stock-sync/connectors/van-mossel.ts",
   "scripts/dealer-stock-sync/connectors/autoweb.ts",
   "scripts/dealer-stock-sync/connectors/html-extract.ts",
   "scripts/dealer-stock-sync/json.ts",

@@ -15,7 +15,8 @@ describe("dealer onboarding manager", () => {
   it("requires checking each dealer offer and has no launch-date control", () => {
     render(<OnboardingManager dealers={[]} invites={[]} selectedDealerId={null} />);
     expect(screen.getByText(/Check the selected dealer’s offer/)).toBeTruthy();
-    expect(screen.getByText(/Preview Packs/)).toBeTruthy();
+    expect(screen.getByText(/Prepared dealer accounts eligible for onboarding/)).toBeTruthy();
+    expect(screen.queryByText(/Preview Packs/)).toBeNull();
     expect(screen.queryByText(/Launch date/i)).toBeNull();
     expect(screen.getByRole("button", { name: /send onboarding email/i })).toBeDisabled();
   });

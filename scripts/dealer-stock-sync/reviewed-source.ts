@@ -219,6 +219,7 @@ function toInventory(input: {
     "reviewed-snapshot",
   ];
   const evidence: ReviewedActionEvidence = {
+    condition: listing?.condition ?? canonical?.condition,
     displayTitle,
     fuel: input.row.fuel ?? null,
     transmission: input.row.transmission ?? null,
@@ -240,6 +241,7 @@ function toInventory(input: {
   return {
     evidence,
     vehicle: {
+      condition: listing?.condition ?? canonical?.condition,
       sourceIdentityKey: reviewedIdentityKey(input.row.sourceVehicleId),
       availability: input.row.availability,
       isPoa: canonical?.isPoa ?? input.row.pricePence == null,

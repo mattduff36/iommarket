@@ -132,6 +132,7 @@ function correctedReview(action: PlanAction, input: StockReviewCorrectionInput):
   const previous = action.review;
   const provenance = [...(previous?.provenance ?? []).filter((item) => item !== "admin-corrected"), "admin-corrected"];
   return {
+    condition: action.kind === "create" ? action.condition : action.review?.condition,
     displayTitle: input.title,
     description: input.description,
     attributes: { ...input.attributes },
@@ -170,6 +171,7 @@ export function buildCorrectedCreateAction(action: PlanAction, input: StockRevie
     sourceImageUrls: [...input.photoUrls],
     sourceUrl: review.sourceUrl,
     changes: [{ field: "price", before: null, after: input.price }],
+    condition: action.kind === "create" ? action.condition : action.review?.condition,
     displayTitle: input.title,
     review,
   };

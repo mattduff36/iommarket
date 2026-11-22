@@ -1,8 +1,5 @@
 import type { Prisma } from "@prisma/client";
-import {
-  foundingEmails,
-  foundingEmailsForKeys,
-} from "@/lib/dealers/onboarding/founding-allowlist";
+import { foundingEmails } from "@/lib/dealers/onboarding/founding-allowlist";
 import { onboardingTestEmailsForEnvironment } from "@/lib/dealers/onboarding/test-accounts";
 import {
   isPlaceholderAuthUserId,
@@ -89,7 +86,7 @@ function eligibleEmails(
 ) {
   if (environment === "preview") {
     return [
-      ...foundingEmailsForKeys(enabledPackKeys),
+      ...foundingEmails(),
       ...onboardingTestEmailsForEnvironment(environment, enabledPackKeys),
     ];
   }

@@ -80,9 +80,11 @@ async function applyUpdate(client: ApplyWriter, action: UpdatePlanAction) {
       lifecycleRevision: action.lifecycleRevision,
       photoRevision: action.photoRevision,
       ...(price ? { price: price.before } : {}),
+      ...(action.conditionChange ? { condition: action.conditionChange.before } : {}),
     },
     data: {
       ...(price && nextPrice != null ? { price: nextPrice } : {}),
+      ...(action.conditionChange ? { condition: action.conditionChange.after, conditionReviewRequired: false } : {}),
       lifecycleRevision: { increment: 1 },
     },
   });
@@ -129,7 +131,7 @@ async function applyCreate(
   if (!category || !region) throw new StalePlanError("Category or region is no longer available.");
   const definitions = await client.attributeDefinition.findMany({ where: { categoryId: category.id } });
   const attributes = normalizeVehicleAttributeRecord(action.attributes);
-  const missing = definitions.filter((definition) => definition.required && !attributes[definition.slug]);
+  const missing = definitions.filter((definition) => definition.required && !attributes[definition.slug] && !(action.condition === "NEW" && ["year", "mileage"].includes(definition.slug)));
   if (missing.length > 0) throw new StalePlanError("Required vehicle details are missing.");
   const listing = await client.listing.create({
     data: {
@@ -138,6 +140,8 @@ async function applyCreate(
       categoryId: category.id,
       regionId: region.id,
       title: action.title,
+      condition: action.condition ?? "USED",
+      conditionReviewRequired: !action.condition,
       description: action.description,
       price: action.pricePence,
       status: "LIVE",

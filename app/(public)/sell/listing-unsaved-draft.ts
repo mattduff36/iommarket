@@ -58,6 +58,7 @@ export interface DraftPhoto {
 }
 
 export interface UnsavedDraftSnapshot {
+  condition?: "NEW" | "USED";
   categoryId: string;
   title: string;
   description: string;
@@ -75,6 +76,7 @@ export interface UnsavedListingDraft {
   savedAt: number;
   userId: string;
   mode: ListingDraftMode;
+  condition?: "NEW" | "USED";
   categoryId: string;
   title: string;
   description: string;
@@ -180,6 +182,7 @@ export function formPhotoToDraftPhoto(image: {
 
 export function snapshotFromDraft(draft: UnsavedListingDraft): UnsavedDraftSnapshot {
   return {
+    condition: draft.condition ?? "USED",
     categoryId: draft.categoryId,
     title: draft.title,
     description: draft.description,
@@ -261,6 +264,7 @@ export function saveUnsavedListingDraft(
     savedAt: now,
     userId: input.userId,
     mode: input.mode,
+    condition: input.snapshot.condition ?? "USED",
     categoryId: input.snapshot.categoryId,
     title: input.snapshot.title,
     description: input.snapshot.description,
@@ -397,6 +401,7 @@ function draftSchema(catalog: DraftCatalog) {
       savedAt: z.number().int().positive(),
       userId: z.string().min(1).max(80).regex(/^[A-Za-z0-9_-]+$/),
       mode: z.enum(["private", "dealer"]),
+      condition: z.enum(["NEW", "USED"]).default("USED"),
       categoryId: z.string().max(100),
       title: z.string().max(120),
       description: z.string().max(5000),

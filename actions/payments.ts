@@ -182,7 +182,7 @@ async function payForListingBody(input: PayForListingInput) {
       dealer: { select: { tier: true } },
     },
   });
-  if (!listing || listing.userId !== user.id || hasMismatchedDealerListing(user, listing)) {
+  if (!listing || listing.ownerArchivedAt || listing.userId !== user.id || hasMismatchedDealerListing(user, listing)) {
     return { error: LISTING_UNAVAILABLE };
   }
   if (isAdminSellerBlocked(user.role)) {
@@ -639,7 +639,7 @@ async function upgradeFeaturedBody(listingId: string) {
   }
 
   const listing = await db.listing.findUnique({ where: { id: listingId } });
-  if (!listing || listing.userId !== user.id) return { error: LISTING_UNAVAILABLE };
+  if (!listing || listing.ownerArchivedAt || listing.userId !== user.id) return { error: LISTING_UNAVAILABLE };
   if (isAdminSellerBlocked(user.role)) {
     return { error: ADMIN_OWNED_LISTING_ERROR };
   }

@@ -4,7 +4,8 @@
   "private": true,
   "overrides": {
     "@prisma/config@7.9.1": {
-      "deepmerge-ts": "8.0.1"
+      "deepmerge-ts": "8.0.1",
+      "effect": "3.22.1"
     },
     "prisma": {
       "mysql2": "3.24.5"
@@ -21,7 +22,7 @@
     "build": "prisma generate && next build",
     "start": "next start",
     "lint": "eslint",
-    "typecheck": "prisma generate && next typegen && tsc --noEmit",
+    "typecheck": "node scripts/typecheck.cjs",
     "db:generate": "prisma generate",
     "db:push": "prisma db push",
     "db:migrate": "prisma migrate dev",

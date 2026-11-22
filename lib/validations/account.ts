@@ -27,6 +27,7 @@ export const updateMyProfileSchema = z.object({
 export type UpdateMyProfileInput = z.infer<typeof updateMyProfileSchema>;
 
 export const updateDealerSelfProfileSchema = z.object({
+  showStockSourceLinks: z.boolean().optional(),
   name: z
     .string()
     .trim()

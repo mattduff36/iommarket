@@ -4,8 +4,9 @@ import * as React from "react";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const { upgradeFeaturedMock } = vi.hoisted(() => ({
+const { upgradeFeaturedMock, openCheckoutMock } = vi.hoisted(() => ({
   upgradeFeaturedMock: vi.fn(),
+  openCheckoutMock: vi.fn(),
 }));
 
 vi.mock("@/actions/payments", () => ({
@@ -17,7 +18,7 @@ vi.mock("@/components/payments/ripple-demo-checkout-dialog", () => ({
   useRippleDemoCheckout: () => ({
     demoCheckoutUrl: null,
     demoDialogOpen: false,
-    openCheckout: vi.fn(),
+    openCheckout: openCheckoutMock,
     setDemoDialogOpen: vi.fn(),
   }),
 }));
@@ -27,6 +28,7 @@ import { FeaturedUpgradeButton } from "@/components/marketplace/featured-upgrade
 describe("FeaturedUpgradeButton preview checkout", () => {
   beforeEach(() => {
     upgradeFeaturedMock.mockReset();
+    openCheckoutMock.mockReset();
   });
 
   it("shows the normal price and disables new payments on preview", () => {
@@ -113,6 +115,20 @@ describe("FeaturedUpgradeButton preview checkout", () => {
     fireEvent.click(button);
     expect(upgradeFeaturedMock).toHaveBeenCalledTimes(1);
     expect(document.body).not.toHaveTextContent("private-provider-token");
+  });
+
+  it.each([true, false])("shows recovery links for opened=%s and reuses checkout", async (opened) => {
+    openCheckoutMock.mockReturnValue(opened);
+    upgradeFeaturedMock.mockResolvedValue({ data: { checkoutUrl: "https://checkout.example/featured" } });
+    render(<FeaturedUpgradeButton listingId="listing-1" featuredUpgradePricePence={500} />);
+    fireEvent.click(screen.getByRole("button", { name: /Upgrade -/ }));
+    const dialog = await screen.findByRole("dialog");
+    expect(dialog).toHaveTextContent(opened ? "opened in another tab" : "may have blocked");
+    expect(screen.getByRole("link", { name: "Continue in this tab" })).toHaveAttribute("href", "https://checkout.example/featured");
+    expect(screen.getByRole("link", { name: "Open payment page" })).toHaveAttribute("target", "_blank");
+    fireEvent.click(screen.getByRole("button", { name: "Close" }));
+    fireEvent.click(screen.getByRole("button", { name: /Upgrade -/ }));
+    expect(upgradeFeaturedMock).toHaveBeenCalledTimes(1);
   });
 
 });

@@ -293,7 +293,7 @@ async function OverviewSection({
   const [counts, recent, reviewStats, entitlement, trade] = await Promise.all([
     loadStatusCounts(dealerId),
     db.listing.findMany({
-      where: { dealerId, stockReviewHeld: false },
+      where: { dealerId, ownerArchivedAt: null, stockReviewHeld: false },
       orderBy: { createdAt: "desc" },
       take: RECENT_LISTING_LIMIT,
       select: {
@@ -451,7 +451,7 @@ async function ListingsSection({
   const params = readListingQuery(searchParams ? await searchParams : {});
   const listingWhere = {
     dealerId,
-    stockReviewHeld: false,
+    ownerArchivedAt: null, stockReviewHeld: false,
     ...(params.q ? { title: { contains: params.q, mode: "insensitive" as const } } : {}),
     ...(params.status === "DRAFT" ? { OR: [{ status: "DRAFT" as const }, { revisions: { some: { status: "DRAFT" as const } } }] } : params.status !== "ALL" ? { status: params.status } : {}),
   };
@@ -464,7 +464,7 @@ async function ListingsSection({
         take: PAGE_SIZE,
         load: (ids) =>
           db.listing.findMany({
-            where: { dealerId, stockReviewHeld: false, id: { in: ids } },
+            where: { dealerId, ownerArchivedAt: null, stockReviewHeld: false, id: { in: ids } },
             include: listingInclude,
           }),
       })

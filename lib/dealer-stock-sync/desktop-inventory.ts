@@ -28,6 +28,8 @@ const CONNECTORS = [
   "autoweb",
   "dealer-websites",
   "iomwebdesign",
+  "van-mossel",
+  "handh",
   "html-structured",
   "csv",
   "unknown",
@@ -63,6 +65,7 @@ const provenanceSchema = z.object({
 }).strict();
 
 const vehicleSchema = z.object({
+  condition: z.enum(["NEW", "USED"]).optional(),
   dealerKey: label(80),
   sourceKey: label(80),
   platform: z.enum(CONNECTORS),

@@ -12,6 +12,7 @@ export function useCreateListingLocalDraft(input: {
   enabled: boolean; userId: string; mode: "private" | "dealer";
   categories: Array<{ id: string; attributes: Array<{ id: string }> }>;
   regions: Array<{ id: string }>;
+  condition?: State<"NEW" | "USED">;
   category: State<string>; title: State<string>; description: State<string>;
   price: State<string>; region: State<string>; registration: State<string>;
   attributes: State<Record<string, string>>; selection: State<VehicleCatalogueSelection>;
@@ -23,6 +24,7 @@ export function useCreateListingLocalDraft(input: {
     regionIds: input.regions.map((region) => region.id),
   }), [input.categories, input.regions]);
   const unsavedSnapshot: UnsavedDraftSnapshot = {
+    condition: input.condition?.[0] ?? "USED",
     categoryId: input.category[0], title: input.title[0], description: input.description[0],
     price: input.price[0], regionId: input.region[0], attributes: input.attributes[0],
     registrationInput: input.registration[0], catalogueSelection: input.selection[0],
@@ -32,6 +34,7 @@ export function useCreateListingLocalDraft(input: {
     enabled: input.enabled, userId: input.userId, mode: input.mode,
     catalog: draftCatalog, snapshot: unsavedSnapshot,
     applyDraft: (draft) => {
+      input.condition?.[1](draft.condition ?? "USED");
       input.category[1](draft.categoryId); input.title[1](draft.title);
       input.description[1](draft.description); input.price[1](draft.price);
       input.region[1](draft.regionId); input.attributes[1](draft.attributes);
@@ -40,6 +43,7 @@ export function useCreateListingLocalDraft(input: {
       input.step[1](draft.currentStep);
     },
     resetFields: () => {
+      input.condition?.[1]("USED");
       input.category[1](""); input.title[1](""); input.description[1](""); input.price[1]("");
       input.region[1](""); input.attributes[1]({}); input.registration[1]("");
       input.selection[1]({ makeMode: "manual", modelMode: "manual" });

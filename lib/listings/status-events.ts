@@ -146,6 +146,7 @@ async function runTransition(
       approvedAt: true,
       lifecycleRevision: true,
       stockReviewHeld: true,
+      ownerArchivedAt: true,
       ...(input.action === "SUBMIT" ? { stockDraftReceipts: { where: { revisionId: null }, orderBy: { createdAt: "desc" as const }, take: 1 } } : {}),
     },
   });
@@ -154,6 +155,7 @@ async function runTransition(
     throw new ListingLifecycleError("Listing not found");
   }
   const sellerMutation = input.source === "USER" || input.source === "PAYMENT";
+  if (existing.ownerArchivedAt) throw new ListingLifecycleError("This listing was deleted by its owner.");
   if (existing.stockReviewHeld && sellerMutation) {
     throw new ListingLifecycleError(STOCK_REVIEW_HELD_ERROR);
   }

@@ -131,6 +131,12 @@ describe("listing photo mutation", () => {
     );
   });
 
+  it("refuses owner-archived drafts before touching photos", async () => {
+    listingFindUnique.mockResolvedValue(listing({ ownerArchivedAt: new Date(), status: "TAKEN_DOWN" }));
+    expect(await syncListingImagesForUser({ listingId: "listing-1", userId: "user-1", isAdmin: false,
+      input: { photos: [{ imageId: "img-1" }], basePhotoRevision: 3, mutationId: "mut-new" } })).toEqual({ error: "Listing not found" });
+    expect(transaction).not.toHaveBeenCalled();
+  });
   it("rejects a held dealer draft before replaying an old successful photo mutation", async () => {
     listingFindUnique.mockResolvedValue(listing({ stockReviewHeld: true, lastPhotoMutationId: "mut-1",
       lastPhotoMutationHash: hashPhotoMutation([{ imageId: "img-1" }]) }));

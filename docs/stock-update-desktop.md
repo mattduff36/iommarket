@@ -116,3 +116,8 @@ DW Cars headings now separate the model from the engine and trim text, retaining
 Completion notices colour only the failed outcome red and successful outcome green. Awaiting review badges are green. These colours indicate processing outcome; approval is still required before stock changes.
 
 Van source inventories, pickup headings and explicit camper/motorhome markers now inform review categories. SNCC vehicle overviews are retained (bounded to the submission contract); its explicit motorcycle introduction supplies the correct vehicle type. Existing live listing categories and prices remain subject to review.
+
+
+## Version 1.1.15 standard view
+
+Normal launches start minimised and remain restorable from the taskbar or a second Start-menu launch. The standard view contains only the embedded iTrader logo and “Dealer Stock Update Tool”; the title bar includes the version. View > Debug layout retains sign-in, diagnostics, safe stop and the confirmed site switch. Website task launches retain their scoped background lifetime.

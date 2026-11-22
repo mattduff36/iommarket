@@ -17,6 +17,7 @@ export interface OwnedListingImage {
 }
 
 export interface InventoryVehicle {
+  condition?: "NEW" | "USED";
   sourceIdentityKey: string | null;
   availability: "available" | "reserved" | "sold" | "unknown";
   isPoa: boolean;
@@ -35,6 +36,7 @@ export interface InventoryVehicle {
 }
 
 export interface SyncListing {
+  condition?: "NEW" | "USED";
   stockReviewHeld?: boolean;
   stockDraft?: import("./draft-handoff").StockDraftHandoff;
   updatedAt?: string;
@@ -83,6 +85,7 @@ export interface IdentityPatch {
 }
 
 export interface ReviewedActionEvidence {
+  condition?: "NEW" | "USED";
   displayTitle: string;
   description?: string;
   attributes?: Record<string, string>;
@@ -113,6 +116,7 @@ interface PlanBase {
 }
 
 export interface CreatePlanAction extends PlanBase {
+  condition?: "NEW" | "USED";
   kind: "create";
   sourceIdentityKey: string;
   title: string;
@@ -127,6 +131,7 @@ export interface CreatePlanAction extends PlanBase {
 }
 
 export interface UpdatePlanAction extends PlanBase {
+  conditionChange?: { before: "NEW" | "USED"; after: "NEW" | "USED" };
   kind: "update";
   sourceIdentityKey: string;
   listingId: string;
