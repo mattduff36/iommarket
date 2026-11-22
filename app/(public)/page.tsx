@@ -190,7 +190,6 @@ export default async function HomePage() {
       </section>
 
 
-      <nav aria-label="Browse vehicle condition" className="mx-auto flex max-w-7xl gap-4 px-4 py-4 sm:px-6 lg:px-8"><Link href="/search?condition=NEW" className="rounded border border-border px-4 py-2">Browse new vehicles</Link><Link href="/search?condition=USED" className="rounded border border-border px-4 py-2">Browse used vehicles</Link></nav>
       {/* ============ FEATURED LISTINGS ============ */}
       {featuredListings.length > 0 && (
         <section className="mx-auto max-w-7xl px-4 py-8 sm:py-12 sm:px-6 lg:px-8">

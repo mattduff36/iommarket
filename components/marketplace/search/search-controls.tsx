@@ -92,7 +92,7 @@ export function SearchControls({
   );
 
   const hasMoreOptionsFilters = Boolean(
-    initial.minPrice || initial.maxPrice ||
+    initial.condition || initial.minPrice || initial.maxPrice ||
     initial.minMileage || initial.maxMileage ||
     initial.minYear || initial.maxYear,
   );
@@ -302,14 +302,6 @@ export function SearchControls({
     <div className={cn("space-y-4", className)}>
       {/* ---- PRIMARY ROW ---- */}
       <form onSubmit={handleSubmit}>
-          <label className="mb-3 block text-sm">
-            Vehicle condition
-            <select aria-label="Vehicle condition" value={condition}
-              className="ml-3 rounded border border-border bg-surface px-3 py-2"
-              onChange={(event) => { setCondition(event.target.value); instantNav({ condition: event.target.value || undefined }); }}>
-              <option value="">All vehicles</option><option value="NEW">New</option><option value="USED">Used</option>
-            </select>
-          </label>
         <div className="flex flex-col sm:flex-row sm:items-end gap-3">
           <div className="w-full sm:w-[200px]">
             <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-text-secondary">
@@ -434,6 +426,27 @@ export function SearchControls({
       {/* ---- MORE OPTIONS PANEL ---- */}
       {moreOptionsOpen && (
         <div className="space-y-5 rounded-lg border border-border bg-surface p-4 sm:p-5">
+          <div role="group" aria-label="Vehicle condition" className="grid grid-cols-3 gap-2">
+            {([
+              { value: "", label: "All" },
+              { value: "NEW", label: "New" },
+              { value: "USED", label: "Used" },
+            ] as const).map((option) => (
+              <Button
+                key={option.value}
+                type="button"
+                variant={condition === option.value ? "energy" : "ghost"}
+                aria-pressed={condition === option.value}
+                className={cn("h-11 min-w-0 px-3 text-sm", condition !== option.value && "border border-border")}
+                onClick={() => {
+                  setCondition(option.value);
+                  instantNav({ condition: option.value || undefined });
+                }}
+              >
+                {option.label}
+              </Button>
+            ))}
+          </div>
           <RangeSlider
             label="Price Range"
             min={PRICE_MIN}
