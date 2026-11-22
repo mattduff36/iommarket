@@ -86,7 +86,7 @@ describe("confirmed dealer public stock sources", () => {
     const vehicle = normalizeVanMossel({ ...detail, category: "new", structuredData: {
       ...detail.structuredData, schema: { ...detail.structuredData.schema, color: "A".repeat(80) },
     } }, ctx)!;
-    const now = new Date().toISOString();
+    const now = vehicle.scrapedAt;
     const result = pipelineResultFromSources({ dealer: ctx.dealer, scrapeStartedAt: now, scrapeFinishedAt: now,
       sourceResults: [{ dealerKey: ctx.dealer.key, sourceKey: ctx.source.key, platform: "van-mossel", status: "ok",
         error: null, startUrl: ctx.source.startUrl, pagesFetched: 1, advertisedCount: 1, rawCount: 1,

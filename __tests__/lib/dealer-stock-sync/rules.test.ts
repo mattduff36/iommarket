@@ -73,6 +73,15 @@ function plan(overrides: Partial<Parameters<typeof buildStockSyncPlan>[0]> = {})
 }
 
 describe("dealer stock sync rules", () => {
+  it("keeps a used vehicle with no published mileage blocked on each new admin scrape", () => {
+    const skoda = vehicle({ sourceIdentityKey: "sourceVehicleId:172212408-1", condition: "USED",
+      mileage: null, importable: false, skipReason: "missing-required-attr" });
+    for (const scrapeRunId of ["after-preview-refresh", "next-admin-scrape"]) {
+      const result = plan({ scrapeRunId, registryKey: "van-mossel-motor-mall", vehicles: [skoda], identities: [], listings: [] });
+      expect(result.actions).toEqual([expect.objectContaining({ kind: "blocked",
+        sourceIdentityKey: skoda.sourceIdentityKey, reason: "missing-required-attr", section: "new" })]);
+    }
+  });
   it("reviews explicit condition changes even when price and mileage stay unchanged", () => {
     const result = plan({ vehicles: [vehicle({ condition: "USED" })], listings: [listing({ condition: "NEW" })] });
     expect(result.actions[0]).toMatchObject({ kind: "update", conditionChange: { before: "NEW", after: "USED" } });

@@ -294,6 +294,24 @@ public static class DesktopTests
         Check("update-unattended-settings-and-relaunch", UpdateTests.InstallArguments);
         Check("preview-default-confirmed-production-switch", UpdateTests.SiteSwitch);
         Check("update-download-hash-size-redirect-cancel", UpdateTests.Download);
+        Check("minimal-window-brand-version-and-minimized-start", () =>
+        {
+            using var form = new MainForm();
+            Assert(form.WindowState == FormWindowState.Minimized && form.ShowInTaskbar);
+            Assert(form.Text.Contains(Targets.ClientVersion));
+            var standard = form.Controls.OfType<TableLayoutPanel>().Single();
+            Assert(standard.Controls.Count == 2);
+            Assert(standard.Controls.OfType<PictureBox>().Single().Image is not null);
+            Assert(standard.Controls.OfType<PictureBox>().Single().BackColor == Color.Black);
+            Assert(standard.Controls.OfType<Label>().Single().Text == "Dealer Stock Update Tool");
+            Assert(!standard.Controls.OfType<Button>().Any());
+            var view = form.MainMenuStrip!.Items.OfType<ToolStripMenuItem>().Single();
+            Assert(view.Text == "View" && view.DropDownItems[0].Text == "Debug layout");
+            using var background = new MainForm("itrader-stock-update://launch?environment=preview&ticket=" + new string('a', 43));
+            Assert(background.WindowState == FormWindowState.Minimized && !background.ShowInTaskbar);
+            background.RetainWebsiteConnection();
+            Assert(background.WindowState == FormWindowState.Minimized && background.ShowInTaskbar);
+        });
         var passed = results.All(result => result.Passed);
         var report = JsonSerializer.Serialize(new { passed, results }, new JsonSerializerOptions { WriteIndented = true });
         if (!string.IsNullOrWhiteSpace(reportPath))

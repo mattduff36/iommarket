@@ -25,6 +25,7 @@
   <Import Project="Sdk.targets" Sdk="Microsoft.NET.Sdk" />
   <ItemGroup>
     <Compile Remove="UpgradeBridge.cs" />
+    <EmbeddedResource Include="..\..\public\images\logo-itrader.png" LogicalName="StockUpdate.logo.png" />
     <EmbeddedResource Include="update-public-key.txt" LogicalName="StockUpdate.update-public-key.pem" />
   </ItemGroup>
 </Project>
