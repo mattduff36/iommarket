@@ -43,13 +43,13 @@ it("requires an explicit Oracle pairing and blocks scan and Windows launch for a
   expect(mocks.enqueue).not.toHaveBeenCalled();
   expect(mocks.launch).not.toHaveBeenCalled();
 });
-it("moves the connected badge into the header and scopes the start to Oracle when Windows is also connected", async () => {
+it("shows the connected badge once in the footer and scopes the start to Oracle when Windows is also connected", async () => {
   show([device("windows"), device("oracle", true)]);
-  expect(screen.getByLabelText("Oracle VM connected").closest("header")).toBeInTheDocument();
+  expect(screen.getByText("Oracle Connected").closest("footer")).toBeInTheDocument();
   expect(screen.queryByRole("region", { name: "Worker connection" })).toBeNull();
   expect(screen.queryByRole("button", { name: /Windows/ })).toBeNull();
   fireEvent.click(screen.getByRole("checkbox"));
-  fireEvent.click(screen.getAllByRole("button", { name: "Start worker" })[0]);
+  fireEvent.click(screen.getAllByRole("button", { name: "Scan 1 dealer" })[0]);
   await waitFor(() => expect(mocks.command).toHaveBeenCalledWith({ deviceId: "oracle", instanceId: "oracle", action: "start", jobIds: ["queuedjob"] }));
 });
 it("offers Open Windows Stock Update only when Oracle is unavailable", async () => {

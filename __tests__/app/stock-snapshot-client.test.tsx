@@ -37,6 +37,7 @@ describe("stock page retained snapshot", () => {
     expect(screen.getByRole("button", { name: "Retry approved changes" })).toBeEnabled();
     expect(screen.getByRole("button", { name: "Run a fresh check" })).toBeEnabled();
     expect(screen.getAllByText("Apply failed").length).toBeGreaterThan(0);
+    fireEvent.click(screen.getByRole("button", {name:"More actions"}));
     expect(screen.getByRole("button", { name: "Archive" })).toBeDisabled();
   });
   it("retains results and selection on connection failure, then updates without navigation", async () => {
@@ -47,7 +48,7 @@ describe("stock page retained snapshot", () => {
     expect(screen.getByText(/Updates paused. Showing/)).toBeInTheDocument();
     expect(screen.getByRole("checkbox", { name: "Island Motors" })).toBeChecked();
     expect(screen.getByText(/2 vehicles/)).toBeInTheDocument();
-    for (const button of screen.getAllByRole("button", { name: "Start worker" })) expect(button).toBeDisabled();
+    for (const button of screen.getAllByRole("button", { name: "Scan 1 dealer" })) expect(button).toBeDisabled();
     const recovered = snapshot(); recovered.outstanding[0].inventoryCount = 3;
     mocks.fetch.mockResolvedValue({ ok: true, json: async () => recovered });
     await tick();

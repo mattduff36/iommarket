@@ -258,6 +258,7 @@ describe("admin stock reviews", () => {
       report({ id: "empty", ...dealer("dealer-2", "Empty Motors"), plan: { actions: [] } }),
     ], [], [], "archived");
     expect(screen.getAllByText("No change")).toHaveLength(2);
+    for (const button of screen.getAllByRole("button", {name:"More actions"})) fireEvent.click(button);
     expect(screen.queryByRole("button", { name: "Restore" })).not.toBeInTheDocument();
     expect(screen.getAllByRole("button", { name: "Delete" })).toHaveLength(2);
   });
@@ -346,6 +347,7 @@ it("automatically hides applied reports and does not leave their jobs behind", a
 it("retains superseded genuine no-change reviews in Archived", async () => {
   await renderPage([report({id:"old",status:"SUPERSEDED",plan:{actions:[{kind:"unchanged",sourceIdentityKey:"sourceVehicleId:old",listingId:null}]}})], [], [], "archived");
   expect(screen.getByText("No change", {exact:true})).toBeInTheDocument();
+  fireEvent.click(screen.getByRole("button", {name:"More actions"}));
   expect(screen.queryByRole("button", {name:"Restore"})).not.toBeInTheDocument();
   expect(screen.getByRole("button", {name:"Delete"})).toBeInTheDocument();
 });

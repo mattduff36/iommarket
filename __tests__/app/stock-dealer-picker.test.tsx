@@ -35,9 +35,9 @@ it("queues only selected dealers and starts once after those queues succeed", as
   enqueue.mockImplementation(async ({ dealerId }: { dealerId: string }) => { order.push(`queue:${dealerId}`); return { data: { status: "queued", jobId: "queued-job" } }; });
   command.mockImplementation(async (input: { action: string }) => { order.push(input.action); return { ok: true }; });
   renderPicker();
-  expect(picker().getByRole("button", { name: "Start worker" })).toBeDisabled();
+  expect(picker().getByRole("button", { name: "Scan dealers" })).toBeDisabled();
   fireEvent.click(picker().getByLabelText("Beta"));
-  fireEvent.click(picker().getByRole("button", { name: "Start worker" }));
+  fireEvent.click(picker().getByRole("button", { name: "Scan 1 dealer" }));
   await waitFor(() => expect(order).toEqual(["queue:b", "start"]));
   expect(command).toHaveBeenCalledExactlyOnceWith({ deviceId: "dev_test", instanceId: "instance", action: "start" });
   await waitFor(() => expect(picker().getByLabelText("Beta")).not.toBeChecked());
@@ -49,7 +49,7 @@ it("does not retry an uncertain queue request or start the worker", async () => 
   enqueue.mockRejectedValueOnce(new Error("lost response"));
   renderPicker();
   fireEvent.click(picker().getByLabelText("Alpha"));
-  fireEvent.click(picker().getByRole("button", { name: "Start worker" }));
+  fireEvent.click(picker().getByRole("button", { name: "Scan 1 dealer" }));
   await waitFor(() => expect(picker().getByRole("status")).toHaveTextContent("outcome is uncertain"));
   expect(enqueue).toHaveBeenCalledTimes(1);
   expect(command).not.toHaveBeenCalled();
@@ -60,13 +60,13 @@ it("does not start when every queue fails and keeps partial failures when one su
   renderPicker();
   fireEvent.click(picker().getByLabelText("Alpha"));
   enqueue.mockResolvedValue({ error: "Website source needs setup" });
-  fireEvent.click(picker().getByRole("button", { name: "Start worker" }));
+  fireEvent.click(picker().getByRole("button", { name: "Scan 1 dealer" }));
   await waitFor(() => expect(picker().getByRole("status")).toHaveTextContent("No dealer scans were queued. Alpha: Website source needs setup"));
   expect(command).not.toHaveBeenCalled();
 
   enqueue.mockImplementation(async ({ dealerId }: { dealerId: string }) => dealerId === "a" ? { error: "Website source needs setup" } : { data: { status: "queued", jobId: "queued-job" } });
   fireEvent.click(picker().getByLabelText("Beta"));
-  fireEvent.click(picker().getByRole("button", { name: "Start worker" }));
+  fireEvent.click(picker().getByRole("button", { name: "Scan 2 dealers" }));
   await waitFor(() => expect(command).toHaveBeenCalledTimes(1));
   expect(picker().getByRole("status")).toHaveTextContent("Alpha: Website source needs setup");
   expect(picker().getByLabelText("Alpha")).toBeChecked();
@@ -82,7 +82,7 @@ it("shares one start across the picker and sticky control", async () => {
   });
   renderPicker();
   fireEvent.click(picker().getByLabelText("Alpha"));
-  fireEvent.click(picker().getByRole("button", { name: "Start worker" }));
+  fireEvent.click(picker().getByRole("button", { name: "Scan 1 dealer" }));
   await waitFor(() => expect(command).toHaveBeenCalledTimes(1));
   expect(enqueue).toHaveBeenCalledTimes(1);
   expect(command).toHaveBeenCalledWith({ deviceId: "dev_test", instanceId: "instance", action: "start" });
@@ -92,7 +92,7 @@ it("starts the dashboard-selected computer", async () => {
   renderPicker(connected([device(), device({ deviceId: "dev_other", deviceName: "Other computer", instanceId: "other-instance" })]));
   fireEvent.change(screen.getByLabelText("Computer"), { target: { value: "dev_other" } });
   fireEvent.click(picker().getByLabelText("Alpha"));
-  fireEvent.click(picker().getByRole("button", { name: "Start worker" }));
+  fireEvent.click(picker().getByRole("button", { name: "Scan 1 dealer" }));
   await waitFor(() => expect(command).toHaveBeenCalledWith({ deviceId: "dev_other", instanceId: "other-instance", action: "start" }));
 });
 
@@ -118,7 +118,7 @@ it("locks the picker while retaining footer STOP without selection or new queues
 it("hides controls offline and disables start while awaiting acknowledgement or stopping", () => {
   const offline = renderPicker(connected([]));
   expect(screen.getByRole("heading", { name: "Choose dealers to scrape" })).toBeInTheDocument();
-  expect(screen.getByRole("button", { name: "Start worker" })).toBeDisabled();
+  expect(screen.getByRole("button", { name: "Scan dealers" })).toBeDisabled();
   expect(screen.queryByRole("img", { name: "iTrader" })).not.toBeInTheDocument();
   expect(document.querySelector("[data-stock-worker-dock]")).not.toHaveAttribute("hidden");
   offline.unmount();
@@ -134,7 +134,7 @@ it("hides controls offline and disables start while awaiting acknowledgement or 
 
 it("starts selected dealers from the picker with no duplicate footer play button", async () => {
   renderPicker();
-  const starts = screen.getAllByRole("button", { name: "Start worker" });
+  const starts = screen.getAllByRole("button", { name: "Scan dealers" });
   starts.forEach(button => expect(button).toBeDisabled());
   fireEvent.click(screen.getByRole("button", { name: "Select all" }));
   starts.forEach(button => expect(button).toBeEnabled());
@@ -168,7 +168,7 @@ it("starts an already approved queued job without selecting or rescraping a deal
     jobs={[{ id: "approved", dealerName: "Beta", kind: "APPLY", status: "QUEUED", startedAt: null, reportStatus: "APPROVED" }]}
     readyCount={0}><StockDealerPicker dealers={dealers} /></StockWorkerDashboard>);
   expect(document.querySelector("[data-stock-worker-backdrop]")).toBeInTheDocument();
-  fireEvent.click(screen.getByRole("button", { name: "Start queued work" }));
+  fireEvent.click(within(screen.getByLabelText("Stock Updater")).getByRole("button", { name: "Start queued work" }));
   await waitFor(() => expect(command).toHaveBeenCalledExactlyOnceWith({ deviceId: "dev_test", instanceId: "instance", action: "start" }));
   expect(enqueue).not.toHaveBeenCalled();
 });
@@ -189,7 +189,7 @@ it("locks before the first enqueue completes and releases a rejected request", a
   enqueue.mockImplementation(() => new Promise(resolve => { rejectQueue = () => resolve({ error: "unavailable" }); }));
   renderPicker();
   fireEvent.click(picker().getByLabelText("Alpha"));
-  fireEvent.click(picker().getByRole("button", { name: "Start worker" }));
+  fireEvent.click(picker().getByRole("button", { name: "Scan 1 dealer" }));
   expect(document.querySelector("[data-stock-worker-backdrop]")).toBeInTheDocument();
   fireEvent.click(picker().getByLabelText("Beta"));
   expect(picker().getByLabelText("Beta")).not.toBeChecked();

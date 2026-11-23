@@ -11,8 +11,9 @@ import { useStockSnapshotRefresh } from "../../../stock-reviews/use-stock-snapsh
 import { useOptionalStockWorkerControl } from "../../../stock-reviews/worker-context";
 
 export interface StockReviewSelection { indexes: number[]; setIndexes: (indexes: number[]) => void }
-export function StockReviewSelectionControls({ reportId, fingerprint, actions, selection, onPendingChange }: {
+export function StockReviewSelectionControls({ reportId, fingerprint, actions, selection, focused, onPendingChange }: {
   reportId: string; fingerprint: string; actions: PlanAction[]; selection: StockReviewSelection;
+  focused?: boolean;
   onPendingChange?: (pending: boolean) => void;
 }) {
   const router = useRouter();
@@ -60,7 +61,7 @@ export function StockReviewSelectionControls({ reportId, fingerprint, actions, s
   const actionClass = "min-h-11 shrink-0 gap-1.5 rounded-md px-2 text-xs font-medium normal-case not-italic tracking-normal";
   return <footer className="shrink-0 space-y-2 border-t border-border bg-surface p-2" aria-label="Review actions" aria-busy={pending}>
     <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-    <div className="flex shrink-0 items-center gap-1">
+    {(!focused || chosen.length > 0) && <><div className="flex shrink-0 items-center gap-1">
       <p className="whitespace-nowrap text-xs font-semibold tabular-nums text-text-primary" aria-live="polite">{chosen.length} selected</p>
       <Button type="button" variant="ghost" size="sm" onClick={() => selection.setIndexes([])} disabled={pending || !chosen.length}
         title="Clear selection" className="min-h-11 min-w-9 px-2 text-text-secondary"><X size={14} aria-hidden="true" /><span className="sr-only">Clear selection</span></Button>
@@ -84,7 +85,8 @@ export function StockReviewSelectionControls({ reportId, fingerprint, actions, s
         <X className="size-4 shrink-0" aria-hidden="true" /><span>Reject</span>
       </Button>
     </div>
-    <div className="ml-auto flex flex-wrap items-center gap-1" role="group" aria-label="Whole review actions">
+    </>}
+    {(!focused || !chosen.length) && <div className="ml-auto flex flex-wrap items-center gap-1" role="group" aria-label="Whole review actions">
       <Button type="button" variant="ghost" aria-label={`Approve all eligible (${eligible.length})`}
         title="Approve all eligible additions and updates. Blocked items and removals are excluded."
         className="min-h-11 gap-1.5 px-2 text-xs font-medium normal-case not-italic text-neon-blue-400 hover:text-neon-blue-400"
@@ -97,7 +99,7 @@ export function StockReviewSelectionControls({ reportId, fingerprint, actions, s
         disabled={pending || !blocked.length} onClick={() => run("reject", blocked)}>
         <ListX className="size-4 shrink-0" aria-hidden="true" />Clear blocked <span className="tabular-nums">({blocked.length})</span>
       </Button>
-    </div>
+    </div>}
     </div>
     {feedback.error && <Alert status="error">{feedback.error}</Alert>}
     {feedback.message && <Alert status="success">{feedback.message}</Alert>}

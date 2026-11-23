@@ -52,7 +52,7 @@ function prepareRibbon(canvas: HTMLCanvasElement, logo: HTMLImageElement) {
   };
 }
 
-export function StockUpdaterLogo() {
+export function StockUpdaterLogo({ animated = true }: { animated?: boolean }) {
   const imgRef = useRef<HTMLImageElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   useEffect(() => {
@@ -73,7 +73,7 @@ export function StockUpdaterLogo() {
       last = undefined;
       img.style.opacity = "1";
       canvas.hidden = true;
-      if (motion.matches || document.hidden || !img.complete || !img.naturalWidth) return;
+      if (!animated || motion.matches || document.hidden || !img.complete || !img.naturalWidth) return;
       paint ??= prepareRibbon(canvas, img);
       if (!paint) return;
       paint(elapsed);
@@ -91,7 +91,7 @@ export function StockUpdaterLogo() {
       motion.removeEventListener("change", refresh);
       document.removeEventListener("visibilitychange", refresh);
     };
-  }, []);
+  }, [animated]);
   return <div className="relative mx-auto w-4/5 max-w-[295px]">
     <Image ref={imgRef} src="/images/logo-itrader-hq.png" alt="iTrader.im" unoptimized loading="eager"
       width={1399} height={392} className="block h-auto w-full" />

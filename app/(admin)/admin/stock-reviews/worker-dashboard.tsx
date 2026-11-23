@@ -18,7 +18,7 @@ import { useStockSnapshotRefresh } from "./use-stock-snapshot";
 import { OracleWorkerConnection, useOracleAvailability, type OracleConnectionState } from "./oracle-worker-connection";
 import type { DesktopEnvironment } from "@/lib/dealer-stock-sync/desktop-config";
 
-export interface LiveStockJob { id: string; dealerName: string; kind: string; status: string; startedAt: string | null; reportStatus?: string | null; reviewListingCount?: number | null }
+export interface LiveStockJob { id: string; dealerName: string; kind: string; status: string; startedAt: string | null; reportStatus?: string | null; reviewListingCount?: number | null; resultHref?: string }
 
 
 function elapsed(start: string | null, now: number) {
@@ -130,7 +130,7 @@ export function StockWorkerDashboard({ initial, jobs, readyCount, children, head
     <div className="min-h-dvh">
     <div ref={viewport.ref} style={{ height: viewport.height }} className="flex min-h-0 flex-col">
     <div data-stock-worker-content="" style={{ containerType: "size" }} className="min-h-0 flex-1 space-y-8 overflow-y-auto pr-2 pb-6">
-    {typeof header === "function" ? header(oraclePilot && oracleState === "linked" ? <span aria-label="Oracle VM connected" className="rounded-full border border-neon-blue-500/40 px-3 py-1 text-xs font-medium text-neon-blue-400">Oracle Connected</span> : null) : header}
+    {typeof header === "function" ? header(null) : header}
     {!online ? offlineContent : null}
     {oraclePilot && oracleEnvironment ? (oracleState !== "linked" && !pairingInProgress && <OracleWorkerConnection state={oracleState} environment={oracleEnvironment} openWindows={lifecycle.open} pending={pending} windowsOnline={online && !device?.scopedVm} launchFeedback={<>
       {lifecycle.message && <p role="status" className="text-sm text-text-secondary">{lifecycle.message}</p>}
@@ -195,7 +195,7 @@ export function StockWorkerDashboard({ initial, jobs, readyCount, children, head
     </div>
     </div>
     <StockWorkerCompletion jobs={jobs} canShow={canRefreshStockPage} blocked={pageLocked}
-      liveQueue={current => <StockWorkerPageLock footer={footer} jobs={current} badge={badge} status={title} />} />
+      liveQueue={(current, dismiss) => <StockWorkerPageLock dismiss={dismiss} footer={footer} jobs={current} badge={badge} status={title} />} />
     {lifecycle.dialog}
   </StockDealerSelectionProvider></StockWorkerControlProvider>;
 }

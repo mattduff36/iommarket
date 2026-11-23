@@ -1,8 +1,15 @@
 // @vitest-environment jsdom
 import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { StockWorkerCompletion, stockJobOutcome } from "@/app/(admin)/admin/stock-reviews/worker-completion";
+import { StockWorkerCompletion as RunTracker, stockJobOutcome } from "@/app/(admin)/admin/stock-reviews/worker-completion";
 import { stockReviewListingCount } from "@/app/(admin)/admin/stock-reviews/worker-review-summary";
+import { StockWorkerPageLock } from "@/app/(admin)/admin/stock-reviews/worker-page-lock";
+import type { ComponentProps } from "react";
+function StockWorkerCompletion(props: Omit<ComponentProps<typeof RunTracker>, "liveQueue"> & Partial<Pick<ComponentProps<typeof RunTracker>, "liveQueue">>) {
+  return <RunTracker {...props} liveQueue={(jobs, dismiss) => dismiss || !props.liveQueue
+    ? <StockWorkerPageLock jobs={jobs} dismiss={dismiss} footer={{ current: null }} badge="Oracle Connected" status="Preparing" />
+    : props.liveQueue(jobs)} />;
+}
 const job = (id: string, status: string) => ({ id, dealerName: id, status, kind: "SCRAPE", startedAt: null });
 beforeEach(() => vi.useFakeTimers());
 afterEach(() => { cleanup(); vi.useRealTimers(); });
@@ -68,14 +75,8 @@ describe("completion summaries", () => {
     const view = render(<StockWorkerCompletion jobs={[base]} canShow={() => true} />);
     view.rerender(<StockWorkerCompletion jobs={[{ ...base, status: "SUCCEEDED" }]} canShow={() => true} />);
     await tick();
-    const success = screen.getByText("Success", { exact: true });
     const suffix = reviewListingCount === 0 ? "- no new changes" : `- ${reviewListingCount} ${reviewListingCount === 1 ? "listing" : "listings"} for review`;
-    expect(success).toHaveClass("text-emerald-400");
-    expect(screen.getByText(suffix, { exact: true })).toHaveClass(reviewListingCount === 0 ? "text-text-primary" : "text-emerald-400");
-    expect(screen.getByText(suffix, { exact: true })).not.toHaveClass(reviewListingCount === 0 ? "text-emerald-400" : "text-text-primary");
-    expect(success.closest("li")).toHaveClass("text-text-primary");
-    expect(success.closest("li")).not.toHaveClass("text-emerald-400");
-    expect(success.closest("li")).toHaveTextContent(`Island Motors: Success ${suffix}`);
+    expect(screen.getByRole("listitem")).toHaveTextContent(`Success ${suffix}`);
     expect(stockJobOutcome({ ...base, status: "SUCCEEDED" })).toBe(`Island Motors: Success ${suffix}`);
     expect(screen.queryByText(/successful scans still require/)).not.toBeInTheDocument();
   });
@@ -90,9 +91,8 @@ describe("completion summaries", () => {
     const view = render(<StockWorkerCompletion jobs={[base]} canShow={() => true} />);
     view.rerender(<StockWorkerCompletion jobs={[{ ...base, status }]} canShow={() => true} />);
     await tick();
-    expect(screen.getByRole("listitem")).toHaveTextContent(`Dealer: ${expected}`);
+    expect(screen.getByRole("listitem")).toHaveTextContent(expected);
     expect(screen.queryByText("Success", { exact: true })).not.toBeInTheDocument();
-    if (expected.startsWith("task failed")) expect(screen.getByText("task failed")).toHaveClass("text-red-400");
     expect(stockJobOutcome({ ...base, status })).toBe(`Dealer: ${expected}`);
   });
   it("does not apply scan summaries to apply jobs or missing reports", () => {
@@ -120,8 +120,8 @@ describe("whole-run completion", () => {
     view.rerender(ui("SUCCEEDED", true));
     expect(screen.queryByRole("dialog")).toBeNull();
     view.rerender(ui("SUCCEEDED", false));
-    expect(screen.getByRole("button", { name: "Got it" })).toBeEnabled();
-    fireEvent.click(screen.getByRole("button", { name: "Got it" }));
+    expect(screen.getByRole("button", { name: "Done" })).toBeEnabled();
+    fireEvent.click(screen.getByRole("button", { name: "Done" }));
     await tick(); expect(screen.queryByRole("dialog")).toBeNull();
   });
   it("shows one summary after all dealers finish, retaining earlier results", async () => {
@@ -131,9 +131,9 @@ describe("whole-run completion", () => {
     await tick(); expect(screen.queryByRole("dialog")).toBeNull();
     view.rerender(<StockWorkerCompletion jobs={[job("B", "SUCCEEDED")]} canShow={canShow} />);
     await tick(); expect(screen.getAllByRole("dialog")).toHaveLength(1);
-    expect(screen.getByText("task failed").closest("li")).toHaveTextContent(/A: task failed/);
-    expect(screen.getByText(/finished.*check/).closest("li")).toHaveTextContent(/B: finished/);
-    fireEvent.click(screen.getByText("Got it"));
+    expect(screen.getByText(/task failed/).closest("li")).toHaveTextContent(/A.*task failed/);
+    expect(screen.getByText(/finished.*check/).closest("li")).toHaveTextContent(/B.*finished/);
+    fireEvent.click(screen.getByText("Done"));
     view.rerender(<StockWorkerCompletion jobs={[job("A", "FAILED"), job("B", "SUCCEEDED")]} canShow={canShow} />);
     await tick(); expect(screen.queryByRole("dialog")).toBeNull();
   });
@@ -150,7 +150,7 @@ describe("whole-run completion", () => {
     view.rerender(<StockWorkerCompletion jobs={[job("new", "FAILED")]} canShow={canShow} />);
     await tick(); expect(screen.queryByRole("dialog")).toBeNull();
     visible = true; await tick();
-    expect(screen.getByText("task failed").closest("li")).toBeTruthy();
+    expect(screen.getByText(/task failed/).closest("li")).toBeTruthy();
     expect(screen.queryByText(/old: finished/)).toBeNull();
   });
 });

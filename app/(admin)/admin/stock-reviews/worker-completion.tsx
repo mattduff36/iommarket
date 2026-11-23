@@ -1,7 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState, type ReactNode } from "react";
-import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
+import { useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import type { LiveStockJob } from "./worker-dashboard";
 
 export function stockJobFinished(job: LiveStockJob) {
@@ -27,7 +26,7 @@ export function stockJobOutcome(job: LiveStockJob) {
 }
 
 export function StockWorkerCompletion({ jobs, canShow, blocked = false, liveQueue }: {
-  jobs: LiveStockJob[]; canShow: () => boolean; blocked?: boolean; liveQueue?: (current: LiveStockJob[]) => ReactNode;
+  jobs: LiveStockJob[]; canShow: () => boolean; blocked?: boolean; liveQueue: (current: LiveStockJob[], dismiss?: () => void) => ReactNode;
 }) {
   // Existing history is a baseline, not a new completion notification.
   const seen = useRef(new Set(jobs.map(job => job.id)));
@@ -36,7 +35,7 @@ export function StockWorkerCompletion({ jobs, canShow, blocked = false, liveQueu
   const waiting = useRef<LiveStockJob[][]>([]);
   const [notice, setNotice] = useState<LiveStockJob[] | null>(null);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     for (const job of jobs) {
       if (!seen.current.has(job.id) || run.current.has(job.id) || !stockJobFinished(job)) run.current.set(job.id, job);
       seen.current.add(job.id);
@@ -49,11 +48,11 @@ export function StockWorkerCompletion({ jobs, canShow, blocked = false, liveQueu
       run.current.clear();
     }
   }, [jobs]);
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (!blocked && !run.current.size) setVisibleRun(previous => previous.length ? [] : previous);
   }, [blocked, jobs]);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     function showNext() {
       if (!blocked && !notice && waiting.current.length && canShow()) setNotice(waiting.current.shift()!);
     }
@@ -61,29 +60,11 @@ export function StockWorkerCompletion({ jobs, canShow, blocked = false, liveQueu
     // A completion that arrives during editing waits until the editor closes.
     const timer = window.setInterval(showNext, 1_000);
     return () => window.clearInterval(timer);
-  }, [notice, canShow, blocked]);
+  }, [notice, canShow, blocked, jobs]);
 
-  return <>{blocked && liveQueue?.(visibleRun)}<Dialog open={!blocked && notice !== null} onOpenChange={open => { if (!open && !blocked) setNotice(null); }}>
-    <DialogContent onPointerDownOutside={event => event.preventDefault()}>
-      <DialogTitle>Stock Updater run finished</DialogTitle>
-      <DialogDescription className="mt-3">
-        All {notice?.length ?? 0} tasks in this run have ended. Review the results below. Failed tasks need attention; any proposed listing changes require your approval.
-      </DialogDescription>
-      <ul className="mt-3 max-h-80 space-y-2 overflow-y-auto text-sm">
-        {notice?.map(job => {
-          const outcome = stockJobOutcome(job).slice(job.dealerName.length + 2);
-          const failed = job.status === "FAILED" || job.reportStatus === "FAILED";
-          const suffix = scanReviewSuffix(job);
-          return <li key={job.id} className="text-text-primary">
-            {job.dealerName}: {failed
-              ? <><span className="text-red-400">task failed</span> — check the saved result</>
-              : suffix !== null
-                ? <><span className="text-emerald-400">Success</span>{" "}<span className={job.reviewListingCount === 0 ? "text-text-primary" : "text-emerald-400"}>{suffix}</span></>
-                : <span className={job.status === "SUCCEEDED" ? "text-emerald-400" : undefined}>{outcome}</span>}
-          </li>;
-        })}
-      </ul>
-      <button type="button" className="mt-4 rounded-md bg-neon-blue-500 px-4 py-2 text-sm font-semibold text-white" onClick={() => setNotice(null)}>Got it</button>
-    </DialogContent>
-  </Dialog></>;
+  if (blocked) return liveQueue(visibleRun);
+  if (notice) return liveQueue(notice, () => setNotice(null));
+  // Keep the same surface mounted while the final snapshot is reconciled.
+  if (visibleRun.length && canShow() && jobs.some(job => stockJobFinished(job) && visibleRun.some(row => row.id === job.id))) return liveQueue(visibleRun);
+  return null;
 }

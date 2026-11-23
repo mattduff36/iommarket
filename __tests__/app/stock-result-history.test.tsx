@@ -22,6 +22,11 @@ function Results({ view = "active", rows = entries }: {view?:ResultHistoryState;
     </section></StockResultVisibility>)}
   </StockResultHistory>;
 }
+function more(name: string) {
+  const card = within(screen.getByRole("region", {name}));
+  fireEvent.click(card.getByRole("button", {name:"More actions"}));
+  return card;
+}
 beforeEach(() => { vi.clearAllMocks(); change.mockResolvedValue({success:true}); });
 describe("result history", () => {
   it("hides applied and genuine no-change results by default while active work remains visible", () => {
@@ -31,13 +36,13 @@ describe("result history", () => {
     expect(screen.queryByText("no-change")).not.toBeInTheDocument();
     expect(screen.getByText("pending")).toBeInTheDocument();
     expect(screen.getByText("running")).toBeInTheDocument();
-    expect(screen.getAllByRole("button", {name:"Archive"})).toHaveLength(3);
+    expect(screen.getAllByRole("button", {name:"More actions"})).toHaveLength(3);
     expect(screen.getByRole("link",{name:"Archived (2)"})).toHaveAttribute("href","/admin/stock-reviews?history=archived#stock-review-results");
   });
   it("keeps protected result controls visible with an explanation and no write", () => {
     render(<Results />);
     for (const name of ["pending", "running"]) {
-      const card = within(screen.getByRole("region", { name }));
+      const card = more(name);
       expect(card.getByRole("button", { name: "Archive" })).toBeDisabled();
       expect(card.getByRole("button", { name: "Delete" })).toBeDisabled();
       expect(card.getByText(/before archiving or deleting/)).toBeInTheDocument();
@@ -47,13 +52,13 @@ describe("result history", () => {
   });
   it("archives an ordinary active result through the server and refreshes", async () => {
     render(<Results />);
-    fireEvent.click(within(screen.getByRole("region", {name:"quiet"})).getByRole("button",{name:"Archive"}));
+    fireEvent.click(more("quiet").getByRole("button",{name:"Archive"}));
     await waitFor(() => expect(change).toHaveBeenCalledWith({id:"quiet",kind:"report",action:"archive"}));
     await waitFor(() => expect(refresh).toHaveBeenCalled());
   });
   it("requires confirmation before deleting and can cancel without a write", async () => {
     render(<Results />);
-    fireEvent.click(within(screen.getByRole("region", {name:"quiet"})).getByRole("button",{name:"Delete"}));
+    fireEvent.click(more("quiet").getByRole("button",{name:"Delete"}));
     expect(change).not.toHaveBeenCalled();
     fireEvent.click(screen.getByRole("button",{name:"Cancel"}));
     expect(change).not.toHaveBeenCalled();
@@ -65,25 +70,25 @@ describe("result history", () => {
     render(<Results view="archived" />);
     expect(screen.getByText("applied")).toBeInTheDocument();
     expect(screen.queryByText("quiet")).not.toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button",{name:"Restore"}));
+    fireEvent.click(more("applied").getByRole("button",{name:"Restore"}));
     await waitFor(() => expect(change).toHaveBeenCalledWith({id:"applied",kind:"report",action:"restore"}));
   });
   it("hides Restore for automatically archived no-change results", () => {
     render(<Results view="archived" />);
-    const card = within(screen.getByRole("region", { name: "no-change" }));
+    const card = more("no-change");
     expect(card.queryByRole("button", { name: /restore/i })).not.toBeInTheDocument();
     expect(card.getByRole("button", { name: "Delete" })).toBeEnabled();
   });
   it("clearly restores a deleted no-change review to Archived", async () => {
     render(<Results view="deleted" rows={[{ id: "quiet", kind: "report", state: "deleted", manageable: true, restoreState: "archived" }]} />);
-    fireEvent.click(screen.getByRole("button", { name: "Restore to Archived" }));
+    fireEvent.click(more("quiet").getByRole("button", { name: "Restore to Archived" }));
     await waitFor(() => expect(change).toHaveBeenCalledWith({ id: "quiet", kind: "report", action: "restore" }));
     await waitFor(() => expect(refresh).toHaveBeenCalled());
   });
   it("keeps failed changes visible with an error", async () => {
     change.mockResolvedValue({error:"Could not update result."});
     render(<Results />);
-    fireEvent.click(within(screen.getByRole("region", {name:"quiet"})).getByRole("button",{name:"Archive"}));
+    fireEvent.click(more("quiet").getByRole("button",{name:"Archive"}));
     expect(await screen.findByRole("alert")).toHaveTextContent("Could not update result.");
     expect(screen.getByText("quiet")).toBeInTheDocument();
     expect(refresh).not.toHaveBeenCalled();
