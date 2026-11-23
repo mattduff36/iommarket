@@ -10,6 +10,7 @@ export type StockWorkerCommandOutcome = "ok" | "failed" | "uncertain" | "skipped
 
 export type StockWorkerControlDevice = {
   deviceId: string;
+  scopedVm?: boolean;
   instanceId: string | null;
   state: string | null;
   pendingCommand: { action: StockWorkerCommandAction } | null;
@@ -17,6 +18,7 @@ export type StockWorkerControlDevice = {
 
 export type StockWorkerControl = {
   requestRun?: StockAppRun;
+  scopedVm?: boolean;
   target: string | null;
   online: boolean;
   running: boolean;
@@ -27,7 +29,7 @@ export type StockWorkerControl = {
   message: string;
   tryAcquire: () => boolean;
   release: () => void;
-  dispatch: (action: StockWorkerCommandAction, expectedTarget?: string | null) => Promise<StockWorkerCommandOutcome>;
+  dispatch: (action: StockWorkerCommandAction, expectedTarget?: string | null, jobIds?: string[]) => Promise<StockWorkerCommandOutcome>;
   command: (action: StockWorkerCommandAction) => void;
 };
 
@@ -96,7 +98,7 @@ export function useStockWorkerCommands(
     if (mounted.current) setPending(false);
   }
 
-  async function dispatch(action: StockWorkerCommandAction, expectedTarget?: string | null): Promise<StockWorkerCommandOutcome> {
+  async function dispatch(action: StockWorkerCommandAction, expectedTarget?: string | null, jobIds?: string[]): Promise<StockWorkerCommandOutcome> {
     const current = deviceRef.current;
     if (!mounted.current) return "skipped";
     if (!current?.instanceId || !onlineRef.current || (expectedTarget !== undefined && expectedTarget !== `${current.deviceId}:${current.instanceId}`)) {
@@ -104,7 +106,7 @@ export function useStockWorkerCommands(
       return "skipped";
     }
     try {
-      const result = await commandWorker({ deviceId: current.deviceId, instanceId: current.instanceId, action });
+      const result = await commandWorker({ deviceId: current.deviceId, instanceId: current.instanceId, action, ...(jobIds ? { jobIds } : {}) });
       if (!mounted.current) return result.ok ? "ok" : "failed";
       setMessage(result.ok ? "" :
         result.error === "conflict" ? "The app is no longer connected. Reopen it and sign in." : "The request was not accepted. Check the connection and try again.");
@@ -136,5 +138,5 @@ export function useStockWorkerCommands(
     })();
   }
 
-  return { target: device?.instanceId ? `${device.deviceId}:${device.instanceId}` : null, online, running, pending, stopping, canCommand, pendingCommand, message, tryAcquire, release, dispatch, command };
+  return { scopedVm: device?.scopedVm === true, target: device?.instanceId ? `${device.deviceId}:${device.instanceId}` : null, online, running, pending, stopping, canCommand, pendingCommand, message, tryAcquire, release, dispatch, command };
 }

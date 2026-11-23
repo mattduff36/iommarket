@@ -129,4 +129,23 @@ describe("AdminAnalyticsPage sample visibility", () => {
       ),
     ).toHaveLength(4);
   });
+
+  it("bounds activity and Google Analytics to completed London days", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-07-06T23:30:00Z"));
+    try {
+      const { default: Page } = await import("@/app/(admin)/admin/analytics/page");
+      const html = renderToStaticMarkup(await Page({ searchParams: Promise.resolve({ range: "7d" }) }));
+      const since = new Date("2026-06-29T23:00:00Z");
+      const until = new Date("2026-07-06T23:00:00Z");
+      expect(loadGoogleAnalytics).toHaveBeenCalledWith(expect.objectContaining({ since, until: new Date(until.getTime() - 1) }));
+      const query = dbMock.$queryRaw.mock.calls[0][0];
+      expect(query.values).toContainEqual(since);
+      expect(query.values).toContainEqual(until);
+      expect(query.strings.join(" ")).toContain("AT TIME ZONE 'UTC' AT TIME ZONE 'Europe/London'");
+      expect(query.strings.join(" ")).toContain('views."createdAt" <');
+      expect(JSON.stringify(dbMock.listingView.count.mock.calls[1][0])).toContain(JSON.stringify({ gte: since, lt: until }));
+      expect(html).toContain("Current marketplace");
+    } finally { vi.useRealTimers(); }
+  });
 });

@@ -8,6 +8,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { DealerLogoUpload } from "./dealer-logo-upload";
+import { OpeningHoursEditor } from "@/components/dealers/opening-hours-editor";
+import { emptyOpeningHours, type OpeningHours } from "@/lib/dealers/opening-hours";
 import { FormErrorSummary } from "@/components/ui/form-error-summary";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import {
@@ -19,6 +21,8 @@ import {
 
 interface Props {
   initialData: {
+    openingHoursEnabled?: boolean;
+    openingHours?: OpeningHours | null;
     showStockSourceLinks?: boolean;
     name: string;
     slug: string;
@@ -34,6 +38,8 @@ export function DealerProfileForm({ initialData }: Props) {
   const [isPending, startTransition] = useTransition();
 
   const [name, setName] = useState(initialData.name);
+  const [openingHoursEnabled, setOpeningHoursEnabled] = useState(initialData.openingHoursEnabled ?? false);
+  const [openingHours, setOpeningHours] = useState(initialData.openingHours ?? emptyOpeningHours());
   const [showStockSourceLinks, setShowStockSourceLinks] = useState(initialData.showStockSourceLinks);
   const [slug, setSlug] = useState(initialData.slug);
   const [bio, setBio] = useState(initialData.bio ?? "");
@@ -70,6 +76,8 @@ export function DealerProfileForm({ initialData }: Props) {
     startTransition(async () => {
       try {
       const result = await updateMyDealerProfile({
+        openingHoursEnabled,
+        openingHours,
         ...(showStockSourceLinks !== undefined ? { showStockSourceLinks } : {}),
         name,
         slug,
@@ -198,6 +206,8 @@ export function DealerProfileForm({ initialData }: Props) {
               <ReportableError as="p" className="text-xs text-text-error">{firstFieldError(fieldErrors, "bio")}</ReportableError>
             ) : null}
           </div>
+
+          <OpeningHoursEditor enabled={openingHoursEnabled} value={openingHours} onEnabledChange={setOpeningHoursEnabled} onChange={setOpeningHours} />
 
           {success ? <p role="status" className="text-sm text-neon-blue-400">{success}</p> : null}
 

@@ -1,5 +1,6 @@
 import type { Prisma } from "@prisma/client";
 import { db } from "@/lib/db";
+import { londonDate, londonMidnight, shiftIsoDate } from "@/lib/analytics/london-date";
 import {
   applySampleListingVisibility,
   applySampleUserVisibility,
@@ -27,10 +28,11 @@ export interface BusinessFunnel {
 
 export async function loadBusinessFunnel(input: {
   since: Date;
+  until?: Date;
   sampleVisibility: SampleVisibility;
   liveWhere: Prisma.ListingWhereInput;
 }): Promise<BusinessFunnel> {
-  const created = { gte: input.since };
+  const created = { gte: input.since, ...(input.until ? { lt: input.until } : {}) };
   const visibleListings = applySampleListingVisibility({ createdAt: created }, input.sampleVisibility);
   const [
     views,
@@ -94,11 +96,16 @@ export async function loadBusinessFunnel(input: {
 export function analyticsRange(value: string | undefined, now = new Date()) {
   const key = value === "7d" || value === "90d" ? value : "30d";
   const days = key === "7d" ? 7 : key === "90d" ? 90 : 30;
-  const since = new Date(now.getTime() - days * 24 * 60 * 60 * 1000);
+  const today = londonDate(now);
+  const startDate = shiftIsoDate(today, -days);
+  const since = londonMidnight(startDate);
   return {
     key,
     days,
     since,
-    previousSince: new Date(since.getTime() - days * 24 * 60 * 60 * 1000),
+    until: londonMidnight(today),
+    startDate,
+    endDate: shiftIsoDate(today, -1),
+    previousSince: londonMidnight(shiftIsoDate(startDate, -days)),
   };
 }

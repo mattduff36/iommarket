@@ -16,6 +16,15 @@ export function shiftIsoDate(isoDate: string, days: number): string {
   return date.toISOString().slice(0, 10);
 }
 
+/** UTC instant of midnight in London, including the GMT/BST boundary. */
+export function londonMidnight(isoDate: string): Date {
+  const midnight = new Date(`${isoDate}T00:00:00.000Z`);
+  const hour = Number(new Intl.DateTimeFormat("en-GB", {
+    timeZone: "Europe/London", hour: "2-digit", hourCycle: "h23",
+  }).format(midnight));
+  return new Date(midnight.getTime() - hour * 60 * 60 * 1000);
+}
+
 export function inclusiveDaySpan(startDate: string, endDate: string): number {
   const start = Date.parse(`${startDate}T00:00:00Z`);
   const end = Date.parse(`${endDate}T00:00:00Z`);

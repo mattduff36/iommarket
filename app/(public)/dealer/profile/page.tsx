@@ -1,4 +1,5 @@
 export const dynamic = "force-dynamic";
+import { parseOpeningHours } from "@/lib/dealers/opening-hours";
 
 import Link from "@/components/navigation/link";
 import { redirect } from "next/navigation";
@@ -35,6 +36,8 @@ export default async function DealerProfileManagePage() {
 
       <DealerProfileForm
         initialData={{
+          openingHoursEnabled: user.dealerProfile.openingHoursEnabled,
+          openingHours: parseOpeningHours(user.dealerProfile.openingHours),
           name: user.dealerProfile.name,
           showStockSourceLinks: user.dealerProfile.tier === "PRO" ? user.dealerProfile.showStockSourceLinks : undefined,
           slug: user.dealerProfile.slug,

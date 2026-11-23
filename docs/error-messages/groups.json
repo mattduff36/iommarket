@@ -5,14 +5,14 @@
   "semantic_display_verified_count": 468,
   "deferred_e_candidate_rows": 0,
   "classification_counts": {
-    "displayed": 1127,
-    "internal-only": 1306,
+    "displayed": 1126,
+    "internal-only": 1307,
     "duplicate": 793,
     "irrelevant": 143
   },
   "rule_counts": {
-    "ast-public-return": 538,
-    "ast-no-public-sink": 868,
+    "ast-public-return": 537,
+    "ast-no-public-sink": 869,
     "exact-source-repeat": 793,
     "ast-value-reaches-return": 16,
     "ast-throw-forwarded": 51,
@@ -75,10 +75,10 @@
     "lib-services": 12
   },
   "family_counts": {
-    "public-sink": 1223,
+    "public-sink": 1222,
     "raw-message": 169,
     "fragment": 588,
-    "static-literal": 304,
+    "static-literal": 305,
     "thrown": 891,
     "monitoring": 80,
     "rate-limit": 13,
@@ -115,14 +115,14 @@
     },
     {
       "id": "duplicate:exact-source-repeat:deferred-c:public-sink",
-      "count": 191,
-      "example": "actions/admin.ts:147",
+      "count": 192,
+      "example": "actions/account.ts:185",
       "rule_id": "exact-source-repeat",
       "classification": "duplicate"
     },
     {
       "id": "internal-only:ast-no-public-sink:deferred-c:static-literal",
-      "count": 160,
+      "count": 161,
       "example": "actions/account.ts:73",
       "rule_id": "ast-no-public-sink",
       "classification": "internal-only"
@@ -135,16 +135,16 @@
       "classification": "internal-only"
     },
     {
-      "id": "duplicate:exact-source-repeat:deferred-c:fragment",
+      "id": "duplicate:exact-source-repeat:deferred-c:thrown",
       "count": 125,
-      "example": "actions/account.ts:249",
+      "example": "actions/dealer-reviews.ts:66",
       "rule_id": "exact-source-repeat",
       "classification": "duplicate"
     },
     {
-      "id": "duplicate:exact-source-repeat:deferred-c:thrown",
-      "count": 125,
-      "example": "actions/dealer-reviews.ts:66",
+      "id": "duplicate:exact-source-repeat:deferred-c:fragment",
+      "count": 124,
+      "example": "actions/admin.ts:169",
       "rule_id": "exact-source-repeat",
       "classification": "duplicate"
     },
@@ -164,7 +164,7 @@
     },
     {
       "id": "displayed:ast-public-return:journey-c-public-boundary:public-sink",
-      "count": 68,
+      "count": 67,
       "example": "actions/account.ts:28",
       "rule_id": "ast-public-return",
       "classification": "displayed"
@@ -227,8 +227,8 @@
     },
     {
       "id": "internal-only:ast-no-public-sink:deferred-c:raw-message",
-      "count": 37,
-      "example": "actions/account.ts:248",
+      "count": 36,
+      "example": "actions/admin.ts:168",
       "rule_id": "ast-no-public-sink",
       "classification": "internal-only"
     },
@@ -241,7 +241,7 @@
     },
     {
       "id": "duplicate:exact-source-repeat:journey-c-public-boundary:public-sink",
-      "count": 30,
+      "count": 29,
       "example": "actions/account.ts:81",
       "rule_id": "exact-source-repeat",
       "classification": "duplicate"
@@ -339,15 +339,15 @@
     },
     {
       "id": "internal-only:ast-no-public-sink:journey-c-public-boundary:raw-message",
-      "count": 19,
+      "count": 20,
       "example": "actions/account.ts:65",
       "rule_id": "ast-no-public-sink",
       "classification": "internal-only"
     },
     {
       "id": "duplicate:exact-source-repeat:journey-c-public-boundary:fragment",
-      "count": 18,
-      "example": "actions/dealer.ts:92",
+      "count": 19,
+      "example": "actions/account.ts:249",
       "rule_id": "exact-source-repeat",
       "classification": "duplicate"
     },
