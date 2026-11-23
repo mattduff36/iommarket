@@ -1,0 +1,23 @@
+[Unit]
+Description=iTrader Preview pairing agent (%i)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+User=itrader-stock-%i
+Group=itrader-stock
+LoadCredential=oracle-token:/etc/itrader-stock/oracle-pairing-%i.token
+StateDirectory=itrader-stock-preview-%i
+StateDirectoryMode=0700
+UMask=0077
+ExecStart=/opt/itrader-stock/runtime/bin/node /opt/itrader-stock/oracle-pairing-agent.mjs %i
+Restart=on-failure
+RestartSec=15
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+NoNewPrivileges=true
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+
+[Install]
+WantedBy=multi-user.target

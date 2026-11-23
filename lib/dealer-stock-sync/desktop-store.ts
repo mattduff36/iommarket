@@ -28,6 +28,7 @@ export interface PendingRecord {
 }
 
 export interface SessionRecord {
+  scopedVm?: boolean;
   adminId: string;
   deviceId: string;
   deviceName: string;
@@ -87,7 +88,7 @@ if not matched(KEYS[2], ':session:', ARGV[7]) then return 'lost' end
 if not matched(KEYS[3], ':device:', data.deviceId) then return 'lost' end
 if not matched(KEYS[4], ':admin:', data.adminId) then return 'lost' end
 if not matched(KEYS[5], ':user:', data.userCodeHash) then return 'lost' end
-local session = cjson.encode({ adminId = data.adminId, deviceId = data.deviceId, deviceName = data.deviceName, environment = data.environment, expiresAt = ARGV[8] })
+local session = cjson.encode({ scopedVm = data.clientVersion == "1.1.15-linux.1", adminId = data.adminId, deviceId = data.deviceId, deviceName = data.deviceName, environment = data.environment, expiresAt = ARGV[8] })
 local device = cjson.encode({ scopedVm = (data.clientVersion == "1.1.15-linux.1" and true or nil), adminId = data.adminId, deviceId = data.deviceId, deviceName = data.deviceName, environment = data.environment, sessionTokenHash = ARGV[7], createdAt = ARGV[9], expiresAt = ARGV[8] })
 local created = redis.call('SET', KEYS[2], session, 'EX', ARGV[10], 'NX')
 if not created then return 'rejected' end
@@ -99,12 +100,15 @@ return 'issued'
 `;
 
 const APPROVE_SCRIPT = `
+local owner = redis.call('GET', KEYS[3])
+if owner and owner ~= ARGV[1] then return 'missing' end
 local pointed = redis.call('GET', KEYS[1])
 if pointed ~= KEYS[2] then return 'missing' end
 local raw = redis.call('GET', KEYS[2])
 if not raw then return 'missing' end
 local data = cjson.decode(raw)
 if type(data) ~= 'table' or data.status ~= 'pending' or data.environment ~= ARGV[2] then return 'missing' end
+if data.environment == 'production' and data.clientVersion == '1.1.15-linux.1' and not owner then return 'missing' end
 local ttl = redis.call('TTL', KEYS[2])
 if ttl < 1 then return 'missing' end
 data.status = 'approved'
@@ -246,7 +250,8 @@ export function createRedisDesktopStore(
       return redisCall(async () => {
         const pointed = await redis.get(userKey(userCodeHash));
         if (typeof pointed !== "string" || pointed !== pendingKeyFromPointer(pointed, prefix)) return "missing";
-        const result = await redis.eval(APPROVE_SCRIPT, [userKey(userCodeHash), pointed], [adminId, expectedEnvironment]);
+        const ownerKey = `${prefix}:oracle-owner:${userCodeHash}`;
+        const result = await redis.eval(APPROVE_SCRIPT, [userKey(userCodeHash), pointed, ownerKey], [adminId, expectedEnvironment]);
         return result === "ok" ? "ok" : "missing";
       });
     },
@@ -291,7 +296,15 @@ export function createRedisDesktopStore(
         if (!session || session.environment !== environment) return null;
         const expiry = expiryState(session.expiresAt, now());
         if (expiry === "corrupt") throw new DesktopStoreUnavailable();
-        return expiry === "open" ? session : null;
+        if (expiry !== "open") return null;
+        // Existing pilot sessions predate the scope flag on session records.
+        if (session.scopedVm === undefined) {
+          const paired = deviceFrom(await redis.get(deviceKey(session.deviceId)));
+          if (!paired || paired.deviceId !== session.deviceId || paired.environment !== session.environment ||
+              paired.adminId !== session.adminId || paired.sessionTokenHash !== tokenHash) return null;
+          return { ...session, scopedVm: paired.scopedVm === true };
+        }
+        return session;
       });
     },
     async revokeSession(tokenHash) {
@@ -412,6 +425,8 @@ export function createMemoryDesktopStore(now: () => number, environment: Desktop
       if (!deviceHash) return "missing";
       const record = live(pending, deviceHash);
       if (!record || record.status !== "pending" || record.environment !== expectedEnvironment) return "missing";
+      // The memory adapter has no authenticated Oracle pairing broker.
+      if (expectedEnvironment === "production" && record.clientVersion === "1.1.15-linux.1") return "missing";
       if (expiryState(record.expiresAt, now()) !== "open") return "missing";
       const current = pending.get(deviceHash);
       if (!current) return "missing";
@@ -431,6 +446,7 @@ export function createMemoryDesktopStore(now: () => number, environment: Desktop
       users.delete(record.userCodeHash);
       if (live(sessions, tokenHash)) return "rejected";
       const session: SessionRecord = {
+        scopedVm: record.clientVersion === "1.1.15-linux.1",
         adminId: record.adminId,
         deviceId: record.deviceId,
         deviceName: record.deviceName,

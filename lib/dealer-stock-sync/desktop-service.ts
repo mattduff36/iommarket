@@ -162,6 +162,8 @@ async function begin(deps: DesktopDependencies, body: Record<string, unknown>, i
   const gate = gateOf(deps);
   if (!gate) return failure(503, "unavailable");
   if (body.environment !== gate.environment) return failure(403, "forbidden");
+  if (gate.environment === "production" && body.clientVersion === "1.1.15-linux.1" &&
+      deps.env.ORACLE_STOCK_PRODUCTION_ENABLED !== "1") return failure(403, "forbidden");
   const limited = await rate(deps.store, `begin:${ipHash}`, BEGIN_LIMIT);
   if (limited) return limited;
   for (let attempt = 0; attempt < 3; attempt += 1) {
@@ -275,6 +277,9 @@ async function authorisedSession(
   if (!session || !openUntil(session.expiresAt, deps.now()) || session.environment !== gate.environment) {
     return failure(401, "unauthorized");
   }
+  if (session.scopedVm && gate.environment === "production" && deps.env.ORACLE_STOCK_PRODUCTION_ENABLED !== "1") {
+    return failure(403, "forbidden");
+  }
   const account = await findAccount(deps, session.adminId);
   if (account === "down") return failure(503, "unavailable");
   if (!accountAllowed(account, gate)) return failure(403, "forbidden");
@@ -282,6 +287,7 @@ async function authorisedSession(
 }
 
 export interface DesktopPrincipal {
+  scopedVm?: boolean;
   adminId: string;
   deviceId: string;
   environment: DesktopEnvironment;
@@ -300,6 +306,7 @@ export async function authoriseDesktopRequest(
       adminId: auth.account.id,
       deviceId: auth.session.deviceId,
       environment: auth.session.environment,
+      ...(auth.session.scopedVm ? { scopedVm: true } : {}),
     },
   };
 }

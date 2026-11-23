@@ -346,7 +346,9 @@ export async function commandWorkerDevice(
   if (limited) return { ok: false, error: limited.error === "rate_limited" ? "rate_limited" : "unavailable" };
   const vm = owned.scopedVm === true;
   const ids = parsed.data.jobIds;
-  if (vm && gate.environment !== "preview") return { ok: false, error: "forbidden" };
+  if (vm && gate.environment === "production" && deps.env.ORACLE_STOCK_PRODUCTION_ENABLED !== "1") {
+    return { ok: false, error: "forbidden" };
+  }
   if (Boolean(ids) !== (vm && parsed.data.action === "start")) return { ok: false, error: "invalid_request" };
   if (ids) {
     try {

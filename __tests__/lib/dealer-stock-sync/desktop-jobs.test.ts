@@ -43,6 +43,7 @@ function ownedJob(leaseToken: string, overrides: Partial<DesktopJobRecord> = {})
   return {
     id: JOB_ID,
     kind: "SCRAPE",
+    createdById: ADMIN,
     status: "LEASED",
     bindingId: BINDING_ID,
     dealerId: DEALER_ID,
@@ -136,6 +137,10 @@ function harness(options: {
       }
     }),
     jobs: {
+      async ownedStatuses(adminId, ids) {
+        const job = state.job;
+        return job && job.createdById === adminId && ids.includes(job.id) ? [job.status] : [];
+      },
       async findById(id) {
         options.beforeJobRead?.();
         return state.job?.id === id ? state.job : null;
@@ -431,6 +436,35 @@ describe("desktop jobs", () => {
       limit: DESKTOP_JOB_RATE_LIMIT,
       windowSeconds: DESKTOP_JOB_RATE_WINDOW_SECONDS,
     });
+  });
+
+  it("denies an unscoped or mixed-account Oracle run before claiming a job", async () => {
+    const api = harness({ principal: { ...principal, scopedVm: true }, job: ownedJob(token()) });
+    const foreignId = "cjob000000000000000000002";
+    for (const body of [{ op: "lease" }, { op: "lease", jobIds: [JOB_ID, foreignId] }]) {
+      expect(await api.post(body)).toEqual({ ok: false, status: 403, error: "forbidden" });
+    }
+    const foreign = harness({ principal: { ...principal, scopedVm: true }, job: ownedJob(token(), { createdById: OTHER_DEVICE, status: "SUCCEEDED" }) });
+    expect(await foreign.post({ op: "lease", jobIds: [JOB_ID] })).toEqual({ ok: false, status: 403, error: "forbidden" });
+    expect(api.state.leaseCalls + foreign.state.leaseCalls).toBe(0);
+  });
+
+  it("returns idle when all explicitly requested Oracle jobs belong to this admin and have finished", async () => {
+    const api = harness({ principal: { ...principal, scopedVm: true }, job: ownedJob(token(), { status: "SUCCEEDED" }) });
+    expect(await api.post({ op: "lease", jobIds: [JOB_ID] })).toEqual({ ok: true, status: 200, body: { job: null, pending: false } });
+    expect(api.state.leaseCalls).toBe(0);
+  });
+
+  it("passes the authenticated admin to the lease claim and retries contested owned work", async () => {
+    let assertedAdmin: string | undefined;
+    const api = harness({
+      principal: { ...principal, scopedVm: true }, job: ownedJob(token(), { status: "QUEUED" }),
+      leaseOneJob: async (_owner, _now, _guard, ids, adminId) => {
+        expect(ids).toEqual([JOB_ID]); assertedAdmin = adminId; return null;
+      },
+    });
+    expect(await api.post({ op: "lease", jobIds: [JOB_ID] })).toEqual({ ok: true, status: 200, body: { job: null, pending: true } });
+    expect(assertedAdmin).toBe(ADMIN);
   });
 
   it("returns only the server-selected lease, bound to a random device token", async () => {

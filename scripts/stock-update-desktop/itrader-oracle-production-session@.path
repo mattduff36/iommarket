@@ -1,0 +1,9 @@
+[Unit]
+Description=Watch iTrader Production session replacement (%i)
+
+[Path]
+PathChanged=/var/lib/itrader-stock-production-%i/session.json
+Unit=itrader-oracle-production-session@%i.service
+
+[Install]
+WantedBy=multi-user.target

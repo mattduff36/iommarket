@@ -293,6 +293,15 @@ describe("desktop worker service", () => {
     expect(script).toContain("data.adminId ~= ARGV[4]");
     expect(script.indexOf("data.challenge")).toBeLessThan(script.indexOf("redis.call('SET'"));
     expect(script).not.toMatch(/redis\.call\([^\n]*ARGV\[\d+\]\s*\.\./);
+    const sessionKey = "itrader:stock-desktop:preview:session:legacy";
+    const deviceKey = "itrader:stock-desktop:preview:device:" + pending.deviceId;
+    const saved = { adminId: ADMIN_A, deviceId: pending.deviceId, deviceName: "Renamed computer",
+      environment: "preview", expiresAt: pending.expiresAt };
+    values.set(sessionKey, saved);
+    values.set(deviceKey, { ...saved, sessionTokenHash: "legacy", createdAt: new Date(now).toISOString(), scopedVm: true });
+    expect(await store.readSession("legacy")).toMatchObject({ scopedVm: true });
+    values.set(deviceKey, { ...saved, sessionTokenHash: "wrong", createdAt: new Date(now).toISOString(), scopedVm: false });
+    expect(await store.readSession("legacy")).toBeNull();
     // Adapter contract test, not a claim that a real Redis/Lua server ran.
     redis.eval = async () => { throw new Error("redis down"); };
     await expect(store.consumeRate("begin:test", 5, 600)).rejects.toBeInstanceOf(DesktopStoreUnavailable);
@@ -403,6 +412,23 @@ describe("desktop worker service", () => {
     const foreignSession = await post(deps, { op: "session", includeConfig: true }, `Bearer ${String(second.body.accessToken)}`);
     expect(foreignSession).toMatchObject({ ok: false, error: "unauthorized" });
     expectNoWorkerMaterial(foreignSession);
+
+    const linuxBegin = {
+      op: "begin", deviceName: "Oracle Stock Update VM", codeChallenge: challenge(verifier()),
+      environment: "production", clientVersion: "1.1.15-linux.1",
+    };
+    expect(await post(deps, linuxBegin)).toMatchObject({ ok: false, status: 403 });
+    env.ORACLE_STOCK_PRODUCTION_ENABLED = "1";
+    const productionDeps = memoryDesktopDependencies(env, deps.now, deps.users);
+    const linuxInvitation = await post(productionDeps, linuxBegin);
+    expect(linuxInvitation.ok).toBe(true);
+    if (linuxInvitation.ok) {
+      // A manual production invitation lacks the profile owner bound by the broker.
+      expect(await approveDesktopDevice(productionDeps, {
+        origin: "https://itrader.im", host: "itrader.im", forwardedHost: null,
+        adminId: ADMIN_A, userCode: String(linuxInvitation.body.userCode),
+      })).toMatchObject({ ok: false });
+    }
 
     env.DEALER_STOCK_DESKTOP_ENABLED = "0";
     const closed = await post(deps, {

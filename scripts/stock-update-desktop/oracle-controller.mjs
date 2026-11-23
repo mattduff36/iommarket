@@ -6,13 +6,14 @@ import { createInterface } from "node:readline";
 import { setTimeout as delay } from "node:timers/promises";
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { oracleSessionFile, oracleTarget } from "./oracle-runtime.mjs";
 
-const origin = "https://itrader.dev";
 const root = "/opt/itrader-stock";
+const isMain = process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url);
+const target = oracleTarget(isMain ? process.argv[4] : undefined);
+const { environment, origin, label } = target;
 const profile = process.argv[3];
-const stateDir = /^admin[12]$/.test(profile ?? "") ? "/var/lib/itrader-stock-preview-" + profile : null;
-const sessionFile = stateDir + "/session.json";
-const environment = "preview";
+const sessionFile = isMain ? oracleSessionFile(target, profile) : null;
 const tokenPattern = /^[A-Za-z0-9_-]{43}$/;
 const uuid = /^[\da-f]{8}-[\da-f]{4}-[1-8][\da-f]{3}-[89ab][\da-f]{3}-[\da-f]{12}$/i;
 
@@ -38,7 +39,7 @@ async function post(path, data, bearer) {
 function session(data) {
   if (data?.environment !== environment || !tokenPattern.test(data.accessToken) ||
       !Number.isFinite(Date.parse(data.expiresAt)) || Date.parse(data.expiresAt) <= Date.now()) {
-    throw new Error("Preview device session is invalid or expired");
+    throw new Error(label + " device session is invalid or expired");
   }
   return { accessToken: data.accessToken, environment, expiresAt: data.expiresAt };
 }
@@ -60,7 +61,7 @@ async function pair() {
     codeChallenge: createHash("sha256").update(verifier).digest("base64url"), clientVersion: "1.1.15-linux.1" });
   const url = new URL(data.verificationUri);
   if (url.origin !== origin || url.pathname !== "/admin/stock-worker" || !tokenPattern.test(data.deviceCode)) throw new Error("Invalid pairing response");
-  console.log("Approve this Preview device in your administrator browser:", url.href);
+  console.log("Approve this " + label + " device in your administrator browser:", url.href);
   const expires = Date.now() + Math.min(data.expiresIn, 600) * 1000;
   while (Date.now() < expires) {
     await delay(Math.max(5, Math.min(30, data.interval)) * 1000);
@@ -71,7 +72,7 @@ async function pair() {
     const file = await open(temp, "wx", 0o600);
     try { await file.writeFile(JSON.stringify(saved)); await file.sync(); } finally { await file.close(); }
     await rename(temp, sessionFile);
-    console.log("Preview device paired through", saved.expiresAt);
+    console.log(label + " device paired through", saved.expiresAt);
     return;
   }
   throw new Error("Pairing code expired");
@@ -146,7 +147,6 @@ async function serve() {
 async function main() {
   process.umask(0o077);
   if (process.platform !== "linux" || process.arch !== "arm64" || process.getuid() === 0) throw new Error("Requires an unprivileged Linux Arm64 account");
-  if (!stateDir) throw new Error("Choose the admin1 or admin2 pairing profile");
   const mode = process.argv[2];
   if (mode === "pair") return pair();
   if (mode === "serve") return serve();
@@ -155,6 +155,6 @@ async function main() {
   }
   throw new Error("Choose pair, serve or revoke");
 }
-if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+if (isMain) {
   main().catch(error => { console.error(error.message); process.exitCode = 1; });
 }

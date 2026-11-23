@@ -15,6 +15,8 @@ import { useStockAppLifecycle } from "./app-lifecycle";
 import { useWorkerViewport } from "./use-worker-viewport";
 import { useWorkerPresence } from "./use-worker-presence";
 import { useStockSnapshotRefresh } from "./use-stock-snapshot";
+import { OracleWorkerConnection, useOracleAvailability, type OracleConnectionState } from "./oracle-worker-connection";
+import type { DesktopEnvironment } from "@/lib/dealer-stock-sync/desktop-config";
 
 export interface LiveStockJob { id: string; dealerName: string; kind: string; status: string; startedAt: string | null; reportStatus?: string | null; reviewListingCount?: number | null }
 
@@ -29,9 +31,9 @@ function fresh(device: WorkerDashboardDevice, now: number) {
   return device.online && device.lastSeenAt !== null && now - Date.parse(device.lastSeenAt) <= 35_000;
 }
 
-export function StockWorkerDashboard({ initial, jobs, readyCount, children, header, dealers = [], offlineContent, downloadFallback, initialNow = 0, managedSnapshot = false, connectionLost = false }: {
-  managedSnapshot?: boolean; connectionLost?: boolean;
-  dealers?: StockDealer[]; offlineContent?: ReactNode; downloadFallback?: ReactNode; initialNow?: number; initial: WorkerDashboardResult; jobs: LiveStockJob[]; readyCount: number; children?: ReactNode; header?: ReactNode;
+export function StockWorkerDashboard({ initial, jobs, readyCount, children, header, dealers = [], offlineContent, downloadFallback, initialNow = 0, managedSnapshot = false, connectionLost = false, oraclePilot = false, oracleEnvironment, pairingInProgress = false }: {
+  managedSnapshot?: boolean; connectionLost?: boolean; oraclePilot?: boolean; oracleEnvironment?: DesktopEnvironment; pairingInProgress?: boolean;
+  dealers?: StockDealer[]; offlineContent?: ReactNode; downloadFallback?: ReactNode; initialNow?: number; initial: WorkerDashboardResult; jobs: LiveStockJob[]; readyCount: number; children?: ReactNode; header?: ReactNode | ((badge: ReactNode) => ReactNode);
 }) {
   const [snapshot, setSnapshot] = useState(initial);
   const lastAvailable = useRef(initial);
@@ -51,11 +53,21 @@ export function StockWorkerDashboard({ initial, jobs, readyCount, children, head
   const [selected, setSelected] = useState("");
   const [expanded, setExpanded] = useState(false);
   const devices = visibleSnapshot.ok ? visibleSnapshot.devices : [];
-  const device = devices.find(row => row.deviceId === selected) ?? devices.find(row => fresh(row, now)) ?? devices[0];
+  const oracle = devices.find(row => row.scopedVm && fresh(row, now)) ?? devices.find(row => row.scopedVm);
+  const oracleOnline = Boolean(oracle && fresh(oracle, now));
+  const availability = useOracleAvailability(oraclePilot && !oracleOnline && !connectionLost && visibleSnapshot.ok);
+  const oracleState: OracleConnectionState = connectionLost || !snapshot.ok ? "unknown" : oracleOnline ? "linked" :
+    availability === "disabled" ? "offline" : availability === "available" ? (oracle ? "offline" : "unlinked") : availability;
+  const windows = devices.filter(row => !row.scopedVm);
+  const runningWindows = windows.find(row => stockWorkerIsRunning(fresh(row, now), row.state));
+  const pilotDevice = runningWindows ?? (oracleState === "offline" ? windows.find(row => fresh(row, now)) : oracle);
+  const device = oraclePilot ? pilotDevice : devices.find(row => row.deviceId === selected) ?? devices.find(row => fresh(row, now)) ?? devices[0];
   const online = visibleSnapshot.ok && Boolean(device && (connectionLost ? device.online : fresh(device, now)));
-  const baseControls = useStockWorkerCommands(device, online && !connectionLost, mergeSnapshot);
-  const lifecycle = useStockAppLifecycle(baseControls, devices.filter(row => row.launchId).sort((a, b) => (b.lastSeenAt ?? "").localeCompare(a.lastSeenAt ?? ""))[0]?.launchId);
-  const controls = { ...baseControls, requestRun: connectionLost ? undefined : lifecycle.requestRun, pending: baseControls.pending || lifecycle.pending };
+  const pilotReady = !oraclePilot || (!pairingInProgress && (oracleState === "linked" || oracleState === "offline"));
+  const baseControls = useStockWorkerCommands(device, online && !connectionLost && (pilotReady || Boolean(runningWindows)), mergeSnapshot);
+  const lifecycle = useStockAppLifecycle(baseControls, devices.filter(row => row.launchId).sort((a, b) => (b.lastSeenAt ?? "").localeCompare(a.lastSeenAt ?? ""))[0]?.launchId, !oraclePilot || oracleState === "offline");
+  const canRequest = !connectionLost && pilotReady && !(oraclePilot && oracleOnline && runningWindows);
+  const controls = { ...baseControls, requestRun: canRequest ? lifecycle.requestRun : undefined, pending: baseControls.pending || lifecycle.pending };
   const { pending, message, running } = controls;
   const activeJobs = jobs.filter(job => job.status === "LEASED");
   const pageLocked = activeJobs.length > 0 || stockWorkerIsRunning(online, device?.state);
@@ -111,9 +123,13 @@ export function StockWorkerDashboard({ initial, jobs, readyCount, children, head
     <div className={dockVisible ? "min-h-[calc(100dvh-1rem)]" : undefined}>
     <div ref={viewport.ref} style={{ height: viewport.height }} className={dockVisible ? "flex min-h-0 flex-col" : undefined}>
     <div data-stock-worker-content="" style={dockVisible ? { containerType: "size" } : undefined} className={dockVisible ? "min-h-0 flex-1 space-y-8 overflow-y-auto pr-2 pb-6" : "space-y-8"}>
-    {header}
+    {typeof header === "function" ? header(oraclePilot && oracleState === "linked" ? <span aria-label="Oracle VM connected" className="rounded-full border border-neon-blue-500/40 px-3 py-1 text-xs font-medium text-neon-blue-400">Connected</span> : null) : header}
     {!online ? offlineContent : null}
-    <section aria-label="Worker connection" className="space-y-3 rounded-xl border border-border bg-surface-elevated p-4">
+    {oraclePilot && oracleEnvironment ? (oracleState !== "linked" && !pairingInProgress && <OracleWorkerConnection state={oracleState} environment={oracleEnvironment} openWindows={lifecycle.open} pending={pending} windowsOnline={online && !device?.scopedVm} launchFeedback={<>
+      {lifecycle.message && <p role="status" className="text-sm text-text-secondary">{lifecycle.message}</p>}
+      {lifecycle.launchFallback}
+      {lifecycle.launchFailed && downloadFallback}
+    </>} />) : <section aria-label="Worker connection" className="space-y-3 rounded-xl border border-border bg-surface-elevated p-4">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div><h2 className="text-lg font-semibold text-text-primary">{title}</h2></div>
         <span className={`rounded-full border px-3 py-1 text-xs font-medium ${online ? "border-neon-blue-500/40 text-neon-blue-400" : "border-border text-text-secondary"}`}>{connectionLost ? "Reconnecting" : online ? "Connected" : snapshot.ok ? "Not connected" : "Unavailable"}</span>
@@ -136,7 +152,8 @@ export function StockWorkerDashboard({ initial, jobs, readyCount, children, head
       <div className="flex flex-wrap gap-x-5 gap-y-1 text-sm text-text-secondary"><span>{queued} queued</span><span>{activeJobs.length} processing</span><a href="#stock-review-results" className="text-neon-blue-400 hover:underline">{readyCount} ready for review</a></div>
       {queued > 0 && !running ? <p className="text-sm text-text-secondary">Queued work is ready. Click Start worker without selecting dealers to process it; select dealers only for new scans.</p> : null}
       </> : null}
-    </section>
+    </section>}
+    {oraclePilot && oracleState === "linked" && lifecycle.message && <p role="status" className="text-sm text-text-secondary">{lifecycle.message}</p>}
     {children}
     </div>
     <footer ref={footer} aria-label="Stock Update" hidden={!dockVisible} data-stock-worker-dock="" data-compact={compact} className="shrink-0 border-t-2 border-neon-blue-500/70 bg-canvas pb-[env(safe-area-inset-bottom)] text-text-secondary">

@@ -23,6 +23,7 @@ const MACHINE_PATHS = new Set([
   "/api/stock-worker", // These exact POST endpoints authenticate desktop tokens themselves.
   "/api/stock-worker/jobs",
   "/api/stock-worker/control",
+  "/api/stock-worker/oracle-pairing",
   "/api/stock-worker/update",
   "/api/stock-worker/launch", // One-use admin launch tickets authenticate inside the handler.
   "/api/auth/send-email",

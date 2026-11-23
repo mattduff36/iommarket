@@ -1,0 +1,9 @@
+[Unit]
+Description=Watch iTrader Preview session replacement (%i)
+
+[Path]
+PathChanged=/var/lib/itrader-stock-preview-%i/session.json
+Unit=itrader-oracle-session@%i.service
+
+[Install]
+WantedBy=multi-user.target

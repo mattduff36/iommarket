@@ -58,4 +58,11 @@ verifyRuntimePayload(worker,hashes);
 for (const [source,name] of [["oracle-controller.mjs","controller.mjs"],["itrader-stock-preview@.service","itrader-stock-preview@.service"],["itrader-stock-tmpfiles.conf","itrader-stock-tmpfiles.conf"]]) {
   copyFileSync(resolve(repo,"scripts/stock-update-desktop",source),resolve(out,name));
 }
+for (const name of [
+  "oracle-runtime.mjs", "oracle-pairing-agent.mjs", "itrader-oracle-pairing@.service",
+  "itrader-oracle-session@.service", "itrader-oracle-session@.path", "itrader-stock-production@.service",
+  "itrader-oracle-production-pairing@.service", "itrader-oracle-production-session@.service", "itrader-oracle-production-session@.path",
+]) {
+  copyFileSync(resolve(repo, "scripts/stock-update-desktop", name), resolve(out, name));
+}
 console.log(out);

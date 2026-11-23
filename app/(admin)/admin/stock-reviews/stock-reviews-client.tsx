@@ -20,6 +20,7 @@ import { stockApplyOutcome } from "@/lib/dealer-stock-sync/apply-recovery";
 import { StockDealerPicker } from "./dealer-picker";
 import { DownloadStockWorker } from "./download-worker";
 import { StockWorkerDashboard } from "./worker-dashboard";
+import type { DesktopEnvironment } from "@/lib/dealer-stock-sync/desktop-config";
 import { stockReviewListingCount } from "./worker-review-summary";
 import { StockSyncReviewPanel } from "../dealers/[dealerId]/stock-sync/review-panel";
 
@@ -154,7 +155,7 @@ function ReportCard({ report, open, onToggle, detail }: { report: ReportRow; ope
   );
 }
 
-export function StockReviewsClient({ initial, query, pairing, offlineStatus }: { initial: StockReviewSnapshot; query: Record<string, string | string[] | undefined>; pairing?: ReactNode; offlineStatus?: ReactNode }) {
+export function StockReviewsClient({ initial, query, pairing, offlineStatus, oraclePilot = false, oracleEnvironment }: { initial: StockReviewSnapshot; query: Record<string, string | string[] | undefined>; pairing?: ReactNode; offlineStatus?: ReactNode; oraclePilot?: boolean; oracleEnvironment?: DesktopEnvironment }) {
   const { snapshot, connectionLost, reload } = useStockSnapshot(initial, canRefreshStockPage, isStockReviewSnapshot, stockSnapshotPollInterval);
   const { outstanding, recentReports, jobs, profiles, dashboard, historyEntries } = snapshot;
   // Admin stock management follows the account tier, not billing entitlement.
@@ -205,14 +206,16 @@ export function StockReviewsClient({ initial, query, pairing, offlineStatus }: {
   return (
     <StockSnapshotRefreshProvider value={reload}><div className="space-y-8">
       {connectionLost ? <div role="status" className="rounded-md border border-amber-500/40 p-3 text-sm">Updates paused. Showing the last received results; retrying automatically. The worker may still be running. <button type="button" onClick={reload} className="underline">Retry now</button></div> : null}
-      <StockWorkerDashboard header={<>
+      <StockWorkerDashboard oraclePilot={oraclePilot} oracleEnvironment={oracleEnvironment} pairingInProgress={Boolean(pairing)} header={badge => <>
       <AdminPageHeader
         title="Dealer scrapes"
         description="Review and approve changes before listings update."
+        actions={badge}
+        className={badge ? "flex-row items-start justify-between sm:items-start" : undefined}
       />
       {pairing}
       </>} dealers={availableProfiles.map(({ id, name }) => ({ id, name }))} offlineContent={offlineStatus} downloadFallback={snapshot.desktopEnabled ? <DownloadStockWorker /> : null} initialNow={snapshot.now} initial={dashboard} managedSnapshot connectionLost={connectionLost} readyCount={readyCount} jobs={liveJobs}>
-      <StockDealerPicker retainOnDisconnect={connectionLost} dealers={availableProfiles.map(({ id, name }) => ({ id, name }))} unavailable={unavailableProfiles} />
+      <StockDealerPicker retainOnDisconnect={connectionLost || oraclePilot} dealers={availableProfiles.map(({ id, name }) => ({ id, name }))} unavailable={unavailableProfiles} />
       <StockResultHistory entries={shownHistory} view={historyView}>
       <div data-review-layout={wide ? "split" : "accordion"} className={wide && selectedResult ? "grid min-w-0 grid-cols-[minmax(280px,0.8fr)_minmax(0,1.7fr)] items-start gap-5" : "min-w-0"}>
       <div className={wide && selectedResult ? "max-h-[calc(100dvh-8rem)] space-y-5 overflow-y-auto pr-2" : "space-y-5"}>

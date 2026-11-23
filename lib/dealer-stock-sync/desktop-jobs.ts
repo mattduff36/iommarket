@@ -34,6 +34,7 @@ const stepBody = z.object({ op: z.literal("step"), jobId, leaseToken }).strict()
 
 export interface DesktopJobRecord {
   id: string;
+  createdById: string | null;
   kind: "SCRAPE" | "APPLY";
   status: "QUEUED" | "LEASED" | "SUCCEEDED" | "FAILED" | "CANCELLED";
   bindingId: string;
@@ -115,6 +116,7 @@ export interface DesktopJobDependencies {
     now: Date,
     guard: DesktopJobGuard,
     jobIds?: string[],
+    adminId?: string,
   ) => Promise<{ id: string; owner: string } | null>;
   runLeasedJob: (
     lease: { id: string; owner: string },
@@ -123,6 +125,7 @@ export interface DesktopJobDependencies {
     guard: DesktopJobGuard,
   ) => Promise<void>;
   jobs: {
+    ownedStatuses(adminId: string, ids: string[]): Promise<DesktopJobRecord["status"][]>;
     findById(id: string): Promise<DesktopJobRecord | null>;
     updateMany(args: { where: DesktopJobLeaseWhere; data: DesktopJobLeasePatch }): Promise<{ count: number }>;
   };
@@ -330,17 +333,30 @@ async function lease(
   now: Date,
   jobIds?: string[],
 ): Promise<DesktopJobResponse> {
+  if (principal.scopedVm) {
+    if (!jobIds) return failure(403, "forbidden");
+    let scopedStatuses: DesktopJobRecord["status"][];
+    try { scopedStatuses = await deps.jobs.ownedStatuses(principal.adminId, jobIds); }
+    catch { return failure(503, "unavailable"); }
+    // Strict unique IDs were validated at the request boundary. Missing,
+    // unowned and system-created jobs all have the same denial.
+    if (scopedStatuses.length !== jobIds.length) return failure(403, "forbidden");
+    if (!scopedStatuses.some(status => status === "QUEUED" || status === "LEASED")) return success({ job: null, pending: false });
+  }
   const token = deps.randomBytes(32).toString("base64url");
   if (!LEASE_TOKEN.test(token)) return failure(503, "unavailable");
   const owner = desktopLeaseOwner(principal, token);
   let leased: { id: string; owner: string } | null;
   try {
-    leased = await deps.leaseOneJob(owner, now, guard, jobIds);
+    leased = await deps.leaseOneJob(owner, now, guard, jobIds, principal.scopedVm ? principal.adminId : undefined);
   } catch {
     return failure(503, "unavailable");
   }
   if (!leased) {
     if (!jobIds) return success({ job: null });
+    // We observed pending, owned work before attempting the atomic lease. A
+    // concurrent completion is picked up by the next scoped poll.
+    if (principal.scopedVm) return success({ job: null, pending: true });
     // No available lease may mean a binding is busy, not that this task ended.
     const scoped = await Promise.all(jobIds.map(id => readJob(deps, id)));
     if (scoped.some(job => job === "down")) return failure(503, "unavailable");
@@ -348,10 +364,10 @@ async function lease(
     const pending = scoped.some(job => job !== null && job !== "down" && (job.status === "QUEUED" || job.status === "LEASED"));
     return success({ job: null, pending });
   }
-  if (leased.owner !== owner) return failure(503, "unavailable");
+  if (leased.owner !== owner || (jobIds && !jobIds.includes(leased.id))) return failure(503, "unavailable");
   const job = await readJob(deps, leased.id);
   if (job === "down") return failure(503, "unavailable");
-  if (!job || !leaseActive(job, owner, now)) return failure(503, "unavailable");
+  if (!job || !leaseActive(job, owner, now) || (principal.scopedVm && job.createdById !== principal.adminId)) return failure(503, "unavailable");
   const binding = await requireBinding(deps, job);
   if ("error" in binding) {
     if (binding.status === 409) {
@@ -377,7 +393,7 @@ async function heartbeat(
   if (job === "down") return failure(503, "unavailable");
   const now = deps.now();
   const owner = desktopLeaseOwner(principal, body.leaseToken);
-  if (!job || !leaseActive(job, owner, now)) return failure(409, "conflict");
+  if (!job || !leaseActive(job, owner, now) || (principal.scopedVm && job.createdById !== principal.adminId)) return failure(409, "conflict");
   const extended = await compareOwner(
     deps,
     { id: job.id, status: "LEASED", leaseOwner: owner, leaseExpiresAt: { gt: now } },
@@ -398,7 +414,7 @@ async function ownedJob(
   const job = await readJob(deps, jobId);
   if (job === "down") return failure(503, "unavailable");
   const owner = desktopLeaseOwner(principal, token);
-  if (!job || !leaseActive(job, owner, now)) return failure(409, "conflict");
+  if (!job || !leaseActive(job, owner, now) || (principal.scopedVm && job.createdById !== principal.adminId)) return failure(409, "conflict");
   return { job, owner };
 }
 

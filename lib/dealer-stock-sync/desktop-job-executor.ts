@@ -21,6 +21,7 @@ async function findJob(id: string): Promise<DesktopJobRecord | null> {
     where: { id },
     select: {
       id: true,
+      createdById: true,
       kind: true,
       status: true,
       bindingId: true,
@@ -111,10 +112,17 @@ export function createDesktopJobDependencies(
     },
     consumeRate: (bucket, limit, windowSeconds) => desktop.store.consumeRate(bucket, limit, windowSeconds),
     randomBytes: defaultJobRandomBytes,
-    leaseOneJob: (owner, now, guard, jobIds) => leaseOneJob(owner, now, guard, jobIds),
+    leaseOneJob,
     runLeasedJob: (lease, scrape, _upload, guard) => runLeasedJob(lease, scrape, undefined, guard),
     jobs: {
       findById: findJob,
+      async ownedStatuses(adminId, ids) {
+        const jobs = await db.dealerStockSyncJob.findMany({
+          where: { id: { in: ids }, createdById: adminId },
+          select: { status: true },
+        });
+        return jobs.map(job => job.status);
+      },
       async updateMany(args) {
         const updated = await db.dealerStockSyncJob.updateMany(args);
         return { count: updated.count };

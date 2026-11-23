@@ -31,6 +31,8 @@ sudo cp -a "$stage"/{runtime,worker,browsers,controller.mjs} "$target/"
 sudo chown -R root:root "$target"
 sudo chmod -R a+rX,go-w "$target"
 sudo install -m 0644 "$stage/itrader-stock-preview@.service" /etc/systemd/system/
+sudo install -m 0644 "$stage/oracle-runtime.mjs" "$stage/oracle-pairing-agent.mjs" "$target/"
+sudo install -m 0644 "$stage/itrader-oracle-pairing@.service" "$stage/itrader-oracle-session@.service" "$stage/itrader-oracle-session@.path" /etc/systemd/system/
 sudo install -m 0644 "$stage/itrader-stock-tmpfiles.conf" /etc/tmpfiles.d/
 sudo systemd-tmpfiles --create /etc/tmpfiles.d/itrader-stock-tmpfiles.conf
 sudo systemctl daemon-reload
