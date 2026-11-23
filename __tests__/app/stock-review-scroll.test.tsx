@@ -10,9 +10,12 @@ it.each([true, false])("scrolls the correct target only when opening a result (w
   const panel = document.createElement("aside"); panel.id = "stock-review-pane";
   const card = document.createElement("li"); card.id = "stock-review-result-report-1";
   panel.scrollIntoView = vi.fn(); card.scrollIntoView = vi.fn(); document.body.append(panel, card);
+  const detail = document.createElement("section"); detail.id = "stock-review-detail"; detail.tabIndex = -1;
+  (wide ? panel : card).append(detail);
   const { result, rerender } = renderHook(() => useStockReviewLayout(null, "active"));
   expect(panel.scrollIntoView).not.toHaveBeenCalled(); expect(card.scrollIntoView).not.toHaveBeenCalled();
   act(() => result.current.toggle("report-1"));
+  expect(document.activeElement).toBe(detail);
   const target = wide ? panel : card;
   expect(target.scrollIntoView).toHaveBeenCalledWith({ block: "start", behavior: "smooth" });
   expect((wide ? card : panel).scrollIntoView).not.toHaveBeenCalled();

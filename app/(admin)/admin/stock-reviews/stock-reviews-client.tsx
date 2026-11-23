@@ -139,8 +139,9 @@ function ReportCard({ report, open, onToggle, detail }: { report: ReportRow; ope
         <span className={STOCK_STATUS_BADGE + " " + stockStatusColour(badgeStatus)}>{outcome}</span> · {visibleCount} vehicles
       </p><div className="relative z-10"><StockResultActions id={report.id} /></div></div>
       <p className="text-text-secondary">
-        {actionable} actionable · {blocked} blocked{handoffs ? ` · ${handoffs} tracked drafts` : ""}{removals ? ` · ${removals}` : ""} · {when}
+        {actionable} actionable · {blocked} blocked{handoffs ? ` · ${handoffs} tracked drafts` : ""}{removals ? ` · ${removals}` : ""}
       </p>
+      <time className="block text-xs text-text-tertiary" dateTime={new Date(report.createdAt).toISOString()}>{when}</time>
       {outcome === "No change" ? <p className="text-text-secondary">Nothing to approve. Listings were not changed.</p> : null}
       {report.status === "APPROVED" ? <p className="text-text-secondary">{report.applyRecovery?.retryable ? "Open this review to retry the approved changes or run a fresh check." : report.applyRecovery?.activeJob ? "This dealer has a stock task queued or processing." : "Open this review to check processing status or run a fresh check."}</p> : null}
       {report.status === "APPLIED" ? <p className="text-text-secondary">Listings from this approved plan were applied.</p> : null}
@@ -174,32 +175,36 @@ export function StockReviewsClient({ initial, query, pairing, offlineStatus, ora
   const reports = [...outstanding, ...recentReports];
   const reportsById = new Map(reports.map(report => [report.id, report]));
   const reportsByRun = new Map(reports.map(report => [report.scrapeRunId, report]));
-  const liveJobs = jobs.map(job => {
-    const reportId = job.reportId ?? job.report?.id;
-    const report = reportId ? reportsById.get(reportId) : job.kind === "SCRAPE" ? reportsByRun.get(job.id) : undefined;
-    return {
-      id: job.id, dealerName: job.binding.dealer.name, kind: job.kind, status: job.status,
-      reportStatus: report?.status ?? job.report?.status ?? null,
-      reviewListingCount: report ? stockReviewListingCount(report.plan) : null,
-      startedAt: job.startedAt,
-    };
-  });
   const dealers = dealerGroups(outstanding, recentReports, jobs);
   const historyView: ResultHistoryState = query.history === "archived" || query.history === "deleted" ? query.history : "active";
   const visibleJobs = dealers.flatMap(dealer => dealer.jobs);
   const visibleJobIds = new Set(visibleJobs.map(job => job.id));
   const shownHistory = historyEntries.filter(entry => entry.kind === "report" || visibleJobIds.has(entry.id));
 
+  const liveJobs = jobs.map(job => {
+    const reportId = job.reportId ?? job.report?.id;
+    const report = reportId ? reportsById.get(reportId) : job.kind === "SCRAPE" ? reportsByRun.get(job.id) : undefined;
+    const entry = shownHistory.find(entry => entry.kind === "report" && entry.id === report?.id)
+      ?? shownHistory.find(entry => entry.kind === "job" && entry.id === job.id);
+    const resultId = entry?.kind === "job" ? `job:${entry.id}` : entry?.id;
+    return {
+      resultHref: entry && resultId ? `/admin/stock-reviews?history=${entry.state}&report=${encodeURIComponent(resultId)}#stock-review-detail` : undefined,
+      id: job.id, dealerName: job.binding.dealer.name, kind: job.kind, status: job.status,
+      reportStatus: report?.status ?? job.report?.status ?? null,
+      reviewListingCount: report ? stockReviewListingCount(report.plan) : null,
+      startedAt: job.startedAt,
+    };
+  });
   const { wide, selectedId, toggle } = useStockReviewLayout(typeof query.report === "string" ? query.report : null, historyView);
   const selectedJob = visibleJobs.find(job => `job:${job.id}` === selectedId && historyEntries.some(entry => entry.id === job.id && entry.state === historyView));
   const selectedReport = [...outstanding, ...recentReports].find(report => report.id === (selectedJob ? selectedJob.reportId ?? selectedJob.report?.id ?? reportsByRun.get(selectedJob.id)?.id : selectedId) && historyEntries.some(entry => entry.id === report.id && entry.state === historyView));
   const selectedResult = selectedJob ?? selectedReport;
   const [chosen, setChosen] = useState<{ key: string; indexes: number[] }>({ key: "", indexes: [] });
   const selectionKey = selectedReport ? `${selectedReport.id}:${selectedReport.fingerprint}` : "";
-  const detail = selectedResult ? <section id="stock-review-detail" aria-label={`${selectedResult.binding.dealer.name} stock review`} className="flex h-[min(80dvh,calc(100cqh-4rem))] min-h-0 flex-col gap-4 scroll-mt-6">
+  const detail = selectedResult ? <section id="stock-review-detail" tabIndex={-1} aria-label={`${selectedResult.binding.dealer.name} stock review`} className="flex h-[min(80dvh,calc(100cqh-4rem))] min-h-0 flex-col gap-4 scroll-mt-6">
     <div className="flex shrink-0 items-start justify-between gap-3"><div><p className="text-xs font-semibold uppercase tracking-widest text-neon-blue-400">Stock review</p><h2 className="text-xl font-semibold text-text-primary">{selectedResult.binding.dealer.name}</h2></div><button type="button" onClick={() => { toggle(selectedId!); document.getElementById(`review-toggle-${selectedId}`)?.focus(); }} className="min-h-11 rounded-md border border-border px-3 text-sm">Close review</button></div>
     {selectedJob && <div className="space-y-2 rounded-lg border border-border p-4 text-sm"><p className="font-semibold">{jobOutcome(selectedJob)}</p>{selectedJob.error && <ReportableError as="p" className="text-text-error">{selectedJob.error}</ReportableError>}{!selectedReport && <p>No saved review is available for this task yet. Check processing status above, or run a fresh check after a failure.</p>}</div>}
-    {selectedReport && <StockSyncReviewPanel key={selectionKey} reportId={selectedReport.id} status={selectedReport.status} fingerprint={selectedReport.fingerprint} failureReason={selectedReport.failureReason} applyRecovery={selectedReport.applyRecovery} actions={actionsOf(selectedReport.plan)} pendingActions={actionsOf(selectedReport.plan, "pendingReviewActions")} selection={{ indexes: chosen.key === selectionKey ? chosen.indexes : [], setIndexes: indexes => setChosen({ key: selectionKey, indexes }) }} />}
+    {selectedReport && <StockSyncReviewPanel embedded capturedAt={selectedReport.createdAt} key={selectionKey} reportId={selectedReport.id} status={selectedReport.status} fingerprint={selectedReport.fingerprint} failureReason={selectedReport.failureReason} applyRecovery={selectedReport.applyRecovery} actions={actionsOf(selectedReport.plan)} pendingActions={actionsOf(selectedReport.plan, "pendingReviewActions")} selection={{ indexes: chosen.key === selectionKey ? chosen.indexes : [], setIndexes: indexes => setChosen({ key: selectionKey, indexes }) }} />}
   </section> : null;
   const readyCount = outstanding.filter(report => report.status === "PENDING_REVIEW" && needsReview(actionsOf(report.plan).filter(action => !isSoldStockReviewAction(action)))).length;
 

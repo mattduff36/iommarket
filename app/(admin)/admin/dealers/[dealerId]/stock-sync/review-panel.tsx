@@ -153,6 +153,8 @@ export function StockSyncReviewPanel(input: {
   actions: PlanAction[];
   pendingActions?: PlanAction[];
   selection?: StockReviewSelection;
+  embedded?: boolean;
+  capturedAt?: Date | string;
 }) {
   const [localSelection, setLocalSelection] = useState<number[]>([]);
   const [busy, setBusy] = useState(false);
@@ -167,6 +169,7 @@ export function StockSyncReviewPanel(input: {
   const missing = visible.filter((action) => action.kind === "missing_once");
   const unpublish = visible.filter((action) => action.kind === "unpublish");
   const summary = visible.find((action) => action.review)?.review ?? null;
+  const capturedAt = summary?.capturedAt ?? input.capturedAt;
   const groups = [
     ["Eligible additions and changes", [...actionable]],
     ["Blocked", blocked],
@@ -179,16 +182,16 @@ export function StockSyncReviewPanel(input: {
   return (
     <section className="flex min-h-0 max-h-[80dvh] flex-1 flex-col">
       <div data-stock-review-scroll="" className="min-h-0 flex-1 space-y-4 overflow-y-auto pr-2 pb-4">
-      <h2 className="text-lg font-semibold text-text-primary">Latest review</h2>
+      {!input.embedded && <h2 className="text-lg font-semibold text-text-primary">Latest review</h2>}
       <p className="text-sm text-text-secondary">
         Status: <span className={STOCK_STATUS_BADGE + " " + stockStatusColour(input.status)}>{stockSyncStatus(input.status)}</span>. {actionable.length} actionable, {blocked.length} blocked{handoffs.length ? `, ${handoffs.length} handed-off drafts tracked separately` : ""}.
-        Approving queues processing with Stock Update, including removals. If the app is not connected, you will be asked to open it. Listings do not change until processing succeeds.
+        {input.status === "PENDING_REVIEW" && " Approved changes appear once Stock Updater finishes processing."}
       </p>
-      {summary && Number.isFinite(Date.parse(summary.capturedAt)) ? (
+      {capturedAt && Number.isFinite(new Date(capturedAt).getTime()) ? (
         <div className="rounded-md border border-border bg-surface-secondary px-4 py-3 text-sm text-text-secondary">
-          <p>Saved scan captured {new Date(summary.capturedAt).toLocaleString("en-GB", { timeZone: "Europe/London" })}.</p>
-          {summary.coverageWarning ? <p role="status">{summary.coverageWarning}</p> : null}
-          {summary.capacityWarning ? <p role="status">{summary.capacityWarning}</p> : null}
+          <p>Saved scan captured {new Date(capturedAt).toLocaleString("en-GB", { timeZone: "Europe/London" })}.</p>
+          {summary?.coverageWarning ? <p role="status">{summary.coverageWarning}</p> : null}
+          {summary?.capacityWarning ? <p role="status">{summary.capacityWarning}</p> : null}
         </div>
       ) : null}
       {input.failureReason ? (
@@ -197,8 +200,8 @@ export function StockSyncReviewPanel(input: {
         </ReportableError>
       ) : null}
       <fieldset disabled={busy} className="min-w-0 space-y-4">
-      {groups.map(([title, actions]) => (
-        <div key={title}>
+      {groups.filter(([, actions]) => !input.embedded || actions.length > 0).map(([title, actions]) => (
+        <div key={title} className={actions.length > 0 && actions === unpublish ? "rounded-lg border border-neon-red-500/35 p-3" : undefined}>
           <h3 className="mb-2 text-sm font-semibold text-text-primary">{title}</h3>
           {actions.length === 0 ? (
             <p className="text-sm text-text-tertiary">None</p>
@@ -228,7 +231,7 @@ export function StockSyncReviewPanel(input: {
       </div>}
       </div>
       {input.status === "APPROVED" && <StockApplyRecoveryControls key={recoveryKey} reportId={input.reportId} fingerprint={input.fingerprint} recovery={input.applyRecovery} />}
-      {input.status === "PENDING_REVIEW" && <StockReviewSelectionControls reportId={input.reportId} fingerprint={input.fingerprint} actions={input.actions} selection={selection} onPendingChange={setBusy} />}
+      {input.status === "PENDING_REVIEW" && <StockReviewSelectionControls focused={input.embedded} reportId={input.reportId} fingerprint={input.fingerprint} actions={input.actions} selection={selection} onPendingChange={setBusy} />}
     </section>
   );
 }

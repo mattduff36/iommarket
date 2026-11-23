@@ -42,8 +42,8 @@ describe("Stock Reviews live worker", () => {
   document.body.append(navigation);
   const ui = (text: string) => <StockWorkerDashboard initial={initial} initialNow={Date.now()} jobs={[]} readyCount={0}><p>{text}</p></StockWorkerDashboard>;
   const view = render(ui("Live result one"));
-  expect(navigation).not.toHaveAttribute("inert");
-  expect(document.querySelector("[data-stock-worker-content]")).not.toHaveAttribute("inert");
+  expect(navigation).toHaveAttribute("inert");
+  expect(document.querySelector("[data-stock-worker-content]")).toHaveAttribute("inert");
   fireEvent.click(screen.getByText("Global navigation"));
   expect(navigate).not.toHaveBeenCalled();
   const dock = screen.getByRole("contentinfo", { name: "Stock Updater" });
@@ -85,7 +85,7 @@ describe("Stock Reviews live worker", () => {
   expect(document.querySelector("[data-stock-worker-backdrop]")).toBeInTheDocument();
   view.rerender(<StockWorkerDashboard initial={{ ok: true, devices: [] }} managedSnapshot jobs={[{ ...job, status: "SUCCEEDED" }]} readyCount={0} />);
   await act(async () => { await vi.advanceTimersByTimeAsync(1_000); });
-  expect(document.querySelector("[data-stock-worker-backdrop]")).toBeNull();
+  expect(document.querySelector("[data-stock-worker-backdrop]")).toBeInTheDocument();
   expect(screen.getByRole("dialog", { name: "Stock Updater run finished" })).toBeInTheDocument();
  });
  it("hides offline controls while keeping saved reviews and restores controls on connection", async () => {
@@ -115,12 +115,32 @@ describe("Stock Reviews live worker", () => {
   expect(footer).toHaveAttribute("data-stock-worker-dock");
   expect(footer.className).not.toMatch(/fixed|sticky/);
   expect(document.querySelector("[data-stock-worker-backdrop]")).toBeInTheDocument();
-  expect(document.querySelector("[data-stock-worker-content]")).not.toHaveAttribute("inert");
+  expect(document.querySelector("[data-stock-worker-content]")).toHaveAttribute("inert");
   expect(footer.closest("[inert]")).toBeNull();
   view.rerender(<StockWorkerDashboard dealers={[{ id: "dealer", name: "Island Motors" }]} initial={connected()} jobs={[]} readyCount={0} />);
   expect(screen.queryByRole("progressbar")).not.toBeInTheDocument();
   expect(document.querySelector("[data-stock-worker-backdrop]")).toBeNull();
   expect(document.querySelector("[data-stock-worker-content]")).not.toHaveAttribute("inert");
+ });
+ it("keeps the queue mounted through worker shutdown, then focuses Done and links each saved outcome", () => {
+  const initial = connected();
+  const jobs = [
+    { id: "a", dealerName: "Dealer A", kind: "SCRAPE", status: "LEASED", startedAt: null },
+    { id: "b", dealerName: "Dealer B", kind: "SCRAPE", status: "QUEUED", startedAt: null },
+  ];
+  const outcomes = jobs.map((job, index) => ({ ...job, status: index ? "FAILED" : "SUCCEEDED", resultHref: index ? "?history=active&job=b" : "?history=archived&report=a" }));
+  const running = { ...initial, devices: initial.devices.map(device => ({ ...device, state: "running" as const })) };
+  const ui = (snapshot: WorkerDashboardResult, rows: typeof jobs) => <StockWorkerDashboard initial={snapshot} initialNow={Date.now()} managedSnapshot jobs={rows} readyCount={0} />;
+  const view = render(ui(running, jobs));
+  const surface = screen.getByRole("region", { name: "Live dealer queue" });
+  view.rerender(ui(running, outcomes));
+  view.rerender(ui(initial, outcomes));
+  expect(screen.getByRole("dialog")).toBe(surface);
+  expect(screen.getByRole("button", { name: "Done" })).toHaveFocus();
+  expect(screen.getByRole("link", { name: "Open Dealer A result" })).toHaveAttribute("href", outcomes[0].resultHref);
+  expect(screen.getByRole("link", { name: "Open Dealer B result" })).toHaveAttribute("href", outcomes[1].resultHref);
+  fireEvent.keyDown(screen.getByRole("button", { name: "Done" }), { key: "Escape" });
+  expect(screen.queryByRole("dialog")).toBeNull();
  });
  it("announces a completed scan once and keeps its finished state visible", async () => {
   const job = { id: "scan", dealerName: "Island Motors", kind: "SCRAPE", status: "LEASED", startedAt: new Date().toISOString() };
@@ -130,7 +150,7 @@ describe("Stock Reviews live worker", () => {
   view.rerender(ui("SUCCEEDED"));
   await act(async () => { await vi.advanceTimersByTimeAsync(1_000); });
   expect(screen.getByRole("dialog", { name: "Stock Updater run finished" })).toBeInTheDocument();
-  fireEvent.click(screen.getByRole("button", { name: "Got it" }));
+  fireEvent.click(screen.getByRole("button", { name: "Done" }));
   view.rerender(ui("SUCCEEDED"));
   await tick();
   expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
@@ -146,7 +166,7 @@ describe("Stock Reviews live worker", () => {
   await act(async () => { await vi.advanceTimersByTimeAsync(1_000); });
   const suffix = reviewListingCount === 0 ? "no new changes" : `${reviewListingCount} ${reviewListingCount === 1 ? "listing" : "listings"} for review`;
   expect(within(footer).getByText(`Island Motors: Success - ${suffix}`)).toBeInTheDocument();
-  expect(within(screen.getByRole("dialog")).getByRole("listitem")).toHaveTextContent(`Island Motors: Success - ${suffix}`);
+  expect(within(screen.getByRole("dialog")).getByRole("listitem")).toHaveTextContent(`Success - ${suffix}`);
  });
  it("does not announce old history, and defers new failure notices while editing", async () => {
   const old = { id: "old", dealerName: "Old dealer", kind: "APPLY", status: "SUCCEEDED", reportStatus: "APPLIED", startedAt: null };

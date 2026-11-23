@@ -27,7 +27,7 @@ export function StockResultHistory({ entries, view, children }: {
         </Link>)}
       </nav>
     </div>
-    <p className="text-sm text-text-secondary">Applied and no change results are archived automatically. Restoring a deleted no change result returns it to Archived. Changes are saved across computers. Deleting a result never deletes listings.</p>
+    <p className="text-sm text-text-secondary">Applied and no change results are archived automatically.</p>
     {visible.length === 0 ? <p className="text-sm text-text-secondary">No {view} results.</p> : null}
     {children}
   </History.Provider>;
@@ -47,6 +47,7 @@ export function StockResultActions({ id }: { id: string }) {
   const [error, setError] = useState<string | null>(null);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const unavailableId = useId();
+  const [expanded, setExpanded] = useState(false);
   if (!entry) return null;
   const disabled = pending || !entry.manageable;
   const unavailableReason = entry.kind === "job"
@@ -65,7 +66,9 @@ export function StockResultActions({ id }: { id: string }) {
       } catch { setError("Could not update this result. Please try again."); }
     });
   }
-  return <div className="ml-auto flex max-w-full flex-col items-end gap-2" aria-describedby={!entry.manageable ? unavailableId : undefined} title={!entry.manageable ? unavailableReason : undefined}>
+  return <div className="ml-auto flex max-w-full flex-col items-end gap-2" aria-describedby={expanded && !entry.manageable ? unavailableId : undefined} title={!entry.manageable ? unavailableReason : undefined}>
+    <button type="button" className="min-h-10 rounded-md px-2 text-xs text-text-secondary hover:bg-surface-elevated" aria-expanded={expanded} onClick={() => { setExpanded(!expanded); setConfirmDelete(false); }}>More actions</button>
+    {expanded && <div className="max-w-xs space-y-2 rounded-md border border-border bg-surface-elevated p-2">
     {confirmDelete ? <div role="group" aria-label="Confirm result deletion" className="max-w-sm rounded-md border border-border bg-surface p-3 text-sm">
       <p>Delete this result from the results list? Listings are unaffected. You can restore it from Deleted.</p>
       <div className="mt-2 flex flex-wrap gap-2">
@@ -79,6 +82,7 @@ export function StockResultActions({ id }: { id: string }) {
       {entry.state !== "deleted" ? <button type="button" disabled={disabled} className={BUTTON + " text-red-300"} onClick={() => setConfirmDelete(true)}>Delete</button> : null}
     </div>}
     {!entry.manageable ? <p id={unavailableId} className="max-w-xs text-xs text-text-secondary">{unavailableReason}</p> : null}
+    </div>}
     {error ? <ReportableError as="p" role="alert" className="text-sm text-red-300">{error}</ReportableError> : null}
   </div>;
 }
