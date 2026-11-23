@@ -241,3 +241,17 @@ it("shows installer and pairing status only while offline, including reconnects"
   render(<StockWorkerDashboard initial={{...initial, devices: initial.devices.map(device => ({...device, state: state as typeof device.state}))}} jobs={[]} readyCount={0} />);
   expect(document.querySelector("[data-stock-worker-dock]")).toHaveAttribute("data-compact", "false");
  });
+ it.each(["connected", "stopped", "disconnected", "error", null] as const)(
+  "collapses a finished run with runtime state %s and reserves no space below the dock", state => {
+   const initial = connected();
+   const ui = (runtime: WorkerDashboardDevice["state"], jobStatus: string) => <StockWorkerDashboard
+    initial={{ ...initial, devices: initial.devices.map(device => ({ ...device, state: runtime, online: runtime !== "disconnected" && runtime !== null })) }}
+    managedSnapshot jobs={[{ id: "job", dealerName: "Van Mossel Jacksons", kind: "APPLY", status: jobStatus, startedAt: null }]} readyCount={0} />;
+   const view = render(ui("running", "LEASED"));
+   const dock = view.container.querySelector<HTMLElement>("footer")!;
+   expect(within(dock).getByRole("progressbar")).toBeInTheDocument();
+   view.rerender(ui(state, "SUCCEEDED"));
+   expect(dock).toHaveAttribute("data-compact", "true");
+   expect(within(dock).queryByRole("progressbar")).toBeNull();
+   expect(dock.parentElement?.style.height).toBe(`${window.innerHeight}px`);
+  });

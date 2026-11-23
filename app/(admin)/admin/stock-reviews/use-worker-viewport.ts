@@ -10,7 +10,7 @@ export function useWorkerViewport() {
     const measure = () => {
       if (!ref.current) return;
       const top = Math.max(0, ref.current.getBoundingClientRect().top);
-      setHeight(Math.max(0, window.innerHeight - top - 16));
+      setHeight(Math.max(0, window.innerHeight - top));
     };
     measure();
     window.addEventListener("resize", measure);

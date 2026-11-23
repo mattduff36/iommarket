@@ -127,7 +127,7 @@ export function StockWorkerDashboard({ initial, jobs, readyCount, children, head
 
   return <StockWorkerControlProvider value={controls}><StockDealerSelectionProvider value={selection}>
     {/* Keep document height stable as the navbar scrolls out and the inner viewport expands. */}
-    <div className="min-h-[calc(100dvh-1rem)]">
+    <div className="min-h-dvh">
     <div ref={viewport.ref} style={{ height: viewport.height }} className="flex min-h-0 flex-col">
     <div data-stock-worker-content="" style={{ containerType: "size" }} className="min-h-0 flex-1 space-y-8 overflow-y-auto pr-2 pb-6">
     {typeof header === "function" ? header(oraclePilot && oracleState === "linked" ? <span aria-label="Oracle VM connected" className="rounded-full border border-neon-blue-500/40 px-3 py-1 text-xs font-medium text-neon-blue-400">Oracle Connected</span> : null) : header}
@@ -168,13 +168,12 @@ export function StockWorkerDashboard({ initial, jobs, readyCount, children, head
         <h3 className="mb-2 text-sm font-semibold text-text-primary">Recent worker activity</h3>
         {device?.activity.length ? <ol className="space-y-1 text-sm text-text-secondary">{[...device.activity].reverse().map(event => <li key={`${device.instanceId}:${event.sequence}`} className="flex gap-3"><time className="shrink-0 tabular-nums text-text-tertiary" dateTime={event.at}>{new Date(event.at).toLocaleTimeString("en-GB")}</time><span>{event.text}</span></li>)}</ol> : <p className="text-sm text-text-secondary">No activity yet.</p>}
       </div> : null}
-      <div className={progressStyles.progressTrack} role={busy ? "progressbar" : undefined}
-        aria-label={busy ? "Stock update in progress" : undefined} aria-hidden={busy ? undefined : true}>
-        {busy && <div className={`h-full bg-neon-blue-500 ${progressStyles.moving}`} />}
-      </div>
+      {busy && <div className={progressStyles.progressTrack} role="progressbar" aria-label="Stock update in progress">
+        <div className={`h-full bg-neon-blue-500 ${progressStyles.moving}`} />
+      </div>}
       <div className={progressStyles.footerRow} data-active={expandedStatus}>
         <div className="min-w-0">
-          <div className={progressStyles.summary}><strong className="shrink-0 text-sm font-medium text-text-primary">Stock Updater</strong>
+          <div className={progressStyles.summary}><span className="shrink-0 text-xs font-normal text-text-primary">Stock Updater</span>
             <p role="status" title={title} className="truncate text-xs">{title}</p>
           </div>
           <div className={progressStyles.details} data-visible={expandedStatus} aria-hidden={!expandedStatus}>

@@ -57,7 +57,7 @@ export async function AdminArea({
         <div className="flex-1 flex flex-col min-w-0 bg-canvas">
           <AdminMobileNav items={navigation} />
           <main className="flex-1">
-            <NavigationContent className="p-4 sm:p-6 lg:p-8">{children}</NavigationContent>
+            <NavigationContent className="p-4 sm:p-6 lg:p-8 has-[[data-stock-worker-dock]]:pb-0">{children}</NavigationContent>
           </main>
         </div>
     </div>
