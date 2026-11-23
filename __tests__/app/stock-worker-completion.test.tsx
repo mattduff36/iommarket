@@ -99,7 +99,7 @@ describe("whole-run completion", () => {
     view.rerender(ui("SUCCEEDED", true));
     await tick(); expect(screen.queryByRole("dialog")).toBeNull();
     view.rerender(ui("SUCCEEDED", false));
-    expect(screen.getByRole("dialog", { name: "Stock Update run finished" })).toBeInTheDocument();
+    expect(screen.getByRole("dialog", { name: "Stock Updater run finished" })).toBeInTheDocument();
     view.rerender(ui("SUCCEEDED", true));
     expect(screen.queryByRole("dialog")).toBeNull();
     view.rerender(ui("SUCCEEDED", false));

@@ -58,7 +58,7 @@ export function StockWorkerCompletion({ jobs, canShow, blocked = false }: { jobs
 
   return <Dialog open={!blocked && notice !== null} onOpenChange={open => { if (!open && !blocked) setNotice(null); }}>
     <DialogContent onPointerDownOutside={event => event.preventDefault()}>
-      <DialogTitle>Stock Update run finished</DialogTitle>
+      <DialogTitle>Stock Updater run finished</DialogTitle>
       <DialogDescription className="mt-3">
         All {notice?.length ?? 0} tasks in this run have ended. Review the results below. Failed tasks need attention; any proposed listing changes require your approval.
       </DialogDescription>

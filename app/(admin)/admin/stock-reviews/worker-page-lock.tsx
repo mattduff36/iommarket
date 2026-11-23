@@ -34,7 +34,7 @@ export function StockWorkerPageLock({ active, footer }: { active: boolean; foote
   return createPortal(<ToastProvider duration={Infinity} label="Stock update">
     <Toast open variant="default" type="background" tabIndex={-1} data-stock-worker-warning=""
       style={{ pointerEvents: "none" }} className="border-status-warning-text/40 bg-surface text-status-warning-text">
-      <ToastDescription>Stock update is running. You can scroll to view progress; use STOP in the footer to stop the worker.</ToastDescription>
+      <ToastDescription>Stock Updater is busy. You can scroll and use the controls in the footer.</ToastDescription>
     </Toast>
     <ToastViewport hotkey={[]} tabIndex={-1} label="Stock update notice"
       style={{ position: "relative", pointerEvents: "none" }} />

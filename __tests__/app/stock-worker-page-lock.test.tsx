@@ -4,7 +4,7 @@ import { act, cleanup, fireEvent, render, screen } from "@testing-library/react"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { StockWorkerPageLock } from "@/app/(admin)/admin/stock-reviews/worker-page-lock";
 
-const warning = "Stock update is running. You can scroll to view progress; use STOP in the footer to stop the worker.";
+const warning = "Stock Updater is busy. You can scroll and use the controls in the footer.";
 const notice = () => document.querySelector("[data-stock-worker-warning]");
 
 function Fixture({ active = true, click = vi.fn(), submit = vi.fn() }: { active?: boolean; click?: () => void; submit?: () => void }) {
