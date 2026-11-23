@@ -190,7 +190,9 @@ function toListResult(
     .replace(/<style\b[^>]*>[\s\S]*?<\/style>/gi, " ").replace(/<[^>]+>/g, " ").replace(/\s+/g, " ");
   const advertised = context.source.connectorKey === "click-dealer"
     ? visibleText.match(/Showing\s+[\d,]+\s*-\s*[\d,]+\s+vehicles\s+of\s+([\d,]+)/i)
-    : null;
+    : context.dealer.key === "manx-car-warehouse"
+      ? visibleText.match(/\b([\d,]+)\s+vehicles? in stock\b/i)
+      : null;
   const advertisedCount = confirmedEmpty ? 0 : advertised ? Number(advertised[1].replace(/,/g, "")) : null;
   return {
     dealerKey: context.dealer.key,
@@ -347,6 +349,7 @@ export async function fetchWebsiteList(
     const { withPublicPage, fetchPageHtml, gotoPublicPage } = await import("../browse");
     const origin = new URL(startUrl).origin;
     const preferBrowser = context.source.preferBrowser ?? options.preferBrowser;
+    const readHtmlCards = !preferBrowser || context.dealer.key === "manx-car-warehouse";
     const headed = context.source.headed ?? options.headed ?? process.env.DEALER_STOCK_HEADED === "1";
     const waitForSelector = context.source.waitForSelector ?? options.waitForSelector;
     const settleMs = context.source.settleMs ?? options.settleMs ?? 2_500;
@@ -354,14 +357,14 @@ export async function fetchWebsiteList(
     if (!headed) {
       try {
         const firstHtml = await fetchPageHtml(startUrl, context.fetchImpl);
-        let raw = preferBrowser
-          ? [...extractNextDataVehicles(firstHtml), ...extractJsonLdVehicles(firstHtml)].filter(Boolean)
-          : extractStructuredHtml(firstHtml, origin, options.extractHtml);
+        let raw = readHtmlCards
+          ? extractStructuredHtml(firstHtml, origin, options.extractHtml)
+          : [...extractNextDataVehicles(firstHtml), ...extractJsonLdVehicles(firstHtml)].filter(Boolean);
         let pagesFetched = 1;
         const fetched = new Set([startUrl.replace(/\/$/, "")]);
         const queue = discoverStockPageUrls(firstHtml, startUrl);
         let failedPage = false;
-        while (!preferBrowser && pagesFetched < maxPages && queue.length) {
+        while (readHtmlCards && pagesFetched < maxPages && queue.length) {
           const pageUrl = queue.shift()!;
           const key = pageUrl.replace(/\/$/, "");
           if (fetched.has(key)) continue;

@@ -109,6 +109,24 @@ describe("live stock source regressions", () => {
     expect(failed).toMatchObject({ pagesFetched: 1, paginationUncertain: true });
   });
 
+  it("reads both Manx stock pages from public HTML and flags missing stock", async () => {
+    const dealer = getDealer("manx-car-warehouse");
+    const source = { ...dealer.sources[0]!, headed: false };
+    const firstId = "3ca02521-757e-47f1-bbf9-b4e800f9c701";
+    const secondId = "0b302018-f31a-4dec-8112-b500010c35c4";
+    const next = "/stock/used-vehicles-in-ballasalla-isle-of-man/2?order=valuedesc";
+    const card = (id: string) => `<div class="vehicle" data-finance="{&quot;Id&quot;:&quot;${id}&quot;,&quot;Price&quot;:18495}">
+      <a href="/nissan-qashqai-in-ballasalla-isle-of-man-${id}"><div id="makemodel"><h3>Nissan Qashqai</h3></div></a></div>`;
+    const first = `<h2>2 vehicles in stock</h2>${card(firstId)}<a href="${next}">2</a>`;
+    const second = `${card(secondId)}<a href="#offcanvasSearch">Search</a><a href="${next}">2</a>`;
+    const list = (pageTwo: string) => fetchWebsiteList({ dealer, source,
+      fetchImpl: async url => new Response(String(url) === source.startUrl ? first : pageTwo) });
+    const complete = await list(second);
+    expect(complete).toMatchObject({ status: "ok", pagesFetched: 2, advertisedCount: 2, paginationUncertain: false });
+    expect(complete.vehicles.map(vehicle => vehicle.sourceVehicleId)).toEqual([firstId, secondId]);
+    expect(await list("<html></html>")).toMatchObject({ pagesFetched: 2, advertisedCount: 2, paginationUncertain: true });
+  });
+
   it("uses the browser for Manx Car Warehouse only after plain HTTP fails", async () => {
     const previousHeaded = process.env.DEALER_STOCK_HEADED;
     delete process.env.DEALER_STOCK_HEADED;
