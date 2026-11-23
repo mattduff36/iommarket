@@ -43,3 +43,24 @@
 @media (prefers-reduced-motion: reduce) {
   .commandLabel { transition: none; }
 }
+
+.dealerGrid {
+  display: grid;
+  gap: .5rem;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, max(14rem, calc((100% - 2rem) / 5))), 1fr));
+}
+.progressTrack { height: 2px; overflow: hidden; }
+.footerRow, .footerControls, .summary { display: flex; align-items: center; }
+.footerRow { justify-content: space-between; gap: .75rem; padding-block: .125rem; min-height: 1.5rem; }
+.footerRow { transition: min-height 180ms ease; }
+.footerRow[data-active="true"] { min-height: 3rem; }
+.footerControls { flex: none; gap: .65rem; }
+.summary { gap: 1rem; }
+.details { display: grid; grid-template-rows: 0fr; transition: grid-template-rows 180ms ease; }
+.details[data-visible="true"] { grid-template-rows: 1fr; }
+@media (max-width: 40rem) {
+  .footerRow[data-active="true"] { flex-wrap: wrap; gap: .125rem .5rem; }
+  .footerControls { margin-left: auto; flex-wrap: wrap; gap: .4rem; }
+  .summary { gap: .5rem; }
+}
+@media (prefers-reduced-motion: reduce) { .details, .footerRow { transition: none; } }

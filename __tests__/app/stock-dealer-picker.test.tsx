@@ -98,7 +98,7 @@ it("starts the dashboard-selected computer", async () => {
 
 it("locks the picker while retaining footer STOP without selection or new queues", async () => {
   renderPicker(connected([device({ state: "running" })]));
-  const footer = within(screen.getByRole("contentinfo", { name: "Stock Update" }));
+  const footer = within(screen.getByRole("contentinfo", { name: "Stock Updater" }));
   expect(document.querySelector("[data-stock-worker-content]")).not.toHaveAttribute("inert");
   expect(document.querySelector("[data-stock-worker-backdrop]")).toBeInTheDocument();
   fireEvent.click(picker().getByRole("button", { name: "Stop safely" }));
@@ -120,7 +120,7 @@ it("hides controls offline and disables start while awaiting acknowledgement or 
   expect(screen.getByRole("heading", { name: "Choose dealers to scrape" })).toBeInTheDocument();
   expect(screen.getByRole("button", { name: "Start worker" })).toBeDisabled();
   expect(screen.queryByRole("img", { name: "iTrader" })).not.toBeInTheDocument();
-  expect(document.querySelector("[data-stock-worker-dock]")).toHaveAttribute("hidden");
+  expect(document.querySelector("[data-stock-worker-dock]")).not.toHaveAttribute("hidden");
   offline.unmount();
 
   const waiting = renderPicker(connected([device({ pendingCommand: { id: "cmd", instanceId: "instance", action: "start" } })]));
@@ -132,7 +132,7 @@ it("hides controls offline and disables start while awaiting acknowledgement or 
 });
 
 
-it("keeps both start controls in sync and starts selected dealers from the dock", async () => {
+it("starts selected dealers from the picker with no duplicate footer play button", async () => {
   renderPicker();
   const starts = screen.getAllByRole("button", { name: "Start worker" });
   starts.forEach(button => expect(button).toBeDisabled());
@@ -141,7 +141,8 @@ it("keeps both start controls in sync and starts selected dealers from the dock"
   fireEvent.click(screen.getByRole("button", { name: "Clear selection" }));
   starts.forEach(button => expect(button).toBeDisabled());
   fireEvent.click(screen.getByLabelText("Beta"));
-  fireEvent.click(starts[1]);
+  expect(starts).toHaveLength(1);
+  fireEvent.click(starts[0]);
   await waitFor(() => expect(command).toHaveBeenCalledTimes(1));
   expect(enqueue).toHaveBeenCalledExactlyOnceWith({ dealerId: "b" });
   await waitFor(() => starts.forEach(button => expect(button).toBeDisabled()));
@@ -166,8 +167,8 @@ it("starts an already approved queued job without selecting or rescraping a deal
   render(<StockWorkerDashboard dealers={dealers} initial={initial}
     jobs={[{ id: "approved", dealerName: "Beta", kind: "APPLY", status: "QUEUED", startedAt: null, reportStatus: "APPROVED" }]}
     readyCount={0}><StockDealerPicker dealers={dealers} /></StockWorkerDashboard>);
-  expect(picker().getByRole("button", { name: "Start worker" })).toBeEnabled();
-  fireEvent.click(picker().getByRole("button", { name: "Start worker" }));
+  expect(document.querySelector("[data-stock-worker-backdrop]")).toBeInTheDocument();
+  fireEvent.click(screen.getByRole("button", { name: "Start queued work" }));
   await waitFor(() => expect(command).toHaveBeenCalledExactlyOnceWith({ deviceId: "dev_test", instanceId: "instance", action: "start" }));
   expect(enqueue).not.toHaveBeenCalled();
 });
@@ -180,4 +181,18 @@ it("does not enable queued work when the app is awaiting acknowledgement", () =>
     readyCount={0}><StockDealerPicker dealers={dealers} /></StockWorkerDashboard>);
   screen.getAllByRole("button", { name: "Waiting for app…" }).forEach(button => expect(button).toBeDisabled());
   expect(command).not.toHaveBeenCalled();
+});
+
+
+it("locks before the first enqueue completes and releases a rejected request", async () => {
+  let rejectQueue!: () => void;
+  enqueue.mockImplementation(() => new Promise(resolve => { rejectQueue = () => resolve({ error: "unavailable" }); }));
+  renderPicker();
+  fireEvent.click(picker().getByLabelText("Alpha"));
+  fireEvent.click(picker().getByRole("button", { name: "Start worker" }));
+  expect(document.querySelector("[data-stock-worker-backdrop]")).toBeInTheDocument();
+  fireEvent.click(picker().getByLabelText("Beta"));
+  expect(picker().getByLabelText("Beta")).not.toBeChecked();
+  await act(async () => rejectQueue());
+  expect(document.querySelector("[data-stock-worker-backdrop]")).toBeNull();
 });

@@ -3,11 +3,10 @@
 import { useLayoutEffect, useRef, useState } from "react";
 
 /** Reserve a footer row inside the available viewport, rather than over the content. */
-export function useWorkerViewport(connected: boolean) {
+export function useWorkerViewport() {
   const ref = useRef<HTMLDivElement>(null);
   const [height, setHeight] = useState<number>();
   useLayoutEffect(() => {
-    if (!connected) return;
     const measure = () => {
       if (!ref.current) return;
       const top = Math.max(0, ref.current.getBoundingClientRect().top);
@@ -23,6 +22,6 @@ export function useWorkerViewport(connected: boolean) {
       window.removeEventListener("scroll", measure);
       observer?.disconnect();
     };
-  }, [connected]);
-  return { ref, height: connected ? height : undefined };
+  }, []);
+  return { ref, height };
 }

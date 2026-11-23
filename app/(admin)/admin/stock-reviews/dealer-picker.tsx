@@ -1,5 +1,6 @@
 "use client";
 import { StockWorkerCommandButton } from "./worker-command-button";
+import styles from "./worker-progress.module.css";
 import { Check } from "lucide-react";
 import { useStockWorkerControl } from "./worker-context";
 import { useStockDealerSelection, type StockDealer } from "./worker-selection";
@@ -12,7 +13,7 @@ export function StockDealerPicker({ dealers, unavailable = [], retainOnDisconnec
       <h2 className="text-lg font-semibold text-text-primary">Choose dealers to scrape</h2>
       <span className="text-sm tabular-nums text-text-secondary">{selection.selected.length} selected</span>
     </div>
-    <fieldset disabled={controls.pending || (!controls.online && !controls.requestRun)} className="grid grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-3">
+    <fieldset disabled={controls.pending || (!controls.online && !controls.requestRun)} className={styles.dealerGrid}>
       <legend className="sr-only">Enabled dealers with a Pro account</legend>
       {dealers.map(dealer => <label key={dealer.id} className="relative cursor-pointer">
         <input type="checkbox" className="peer sr-only" checked={selection.selected.includes(dealer.id)} onChange={() => selection.toggle(dealer.id)} />

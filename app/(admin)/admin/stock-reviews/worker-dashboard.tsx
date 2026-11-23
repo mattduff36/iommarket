@@ -68,22 +68,30 @@ export function StockWorkerDashboard({ initial, jobs, readyCount, children, head
   const lifecycle = useStockAppLifecycle(baseControls, devices.filter(row => row.launchId).sort((a, b) => (b.lastSeenAt ?? "").localeCompare(a.lastSeenAt ?? ""))[0]?.launchId, !oraclePilot || oracleState === "offline");
   const canRequest = !connectionLost && pilotReady && !(oraclePilot && oracleOnline && runningWindows);
   const controls = { ...baseControls, requestRun: canRequest ? lifecycle.requestRun : undefined, pending: baseControls.pending || lifecycle.pending };
-  const { pending, message, running } = controls;
+  const { pending, running } = controls;
+  const message = controls.message || lifecycle.message;
   const activeJobs = jobs.filter(job => job.status === "LEASED");
-  const pageLocked = activeJobs.length > 0 || stockWorkerIsRunning(online, device?.state);
-  const dockVisible = online || pageLocked;
-  const viewport = useWorkerViewport(dockVisible);
+  const viewport = useWorkerViewport();
   const footer = useRef<HTMLElement>(null);
   const queued = jobs.filter(job => job.status === "QUEUED").length;
   const selection = useDealerSelection(dealers, controls, queued > 0, jobs.filter(job => job.status === "QUEUED").map(job => job.id));
-  const active = activeJobs[0];
+  // A disconnected queue may require pairing or the Windows launch dialog before it can run.
+  const queuedHere = queued > 0 && online && controls.online;
+  const pageLocked = pending || activeJobs.length > 0 || stockWorkerIsRunning(online, device?.state)
+    || Boolean(online && device?.pendingCommand) || queuedHere;
+  const active = activeJobs.at(0);
   const latestFinished = jobs.filter(stockJobFinished).sort((left, right) => (right.startedAt ?? "").localeCompare(left.startedAt ?? ""))[0];
   const phase = device?.activity.at(-1)?.text ?? "Connected and ready";
-  const busy = activeJobs.length > 0 || (online && device?.state === "running");
-  const title = connectionLost ? "Updates paused — reconnecting" : !snapshot.ok ? "Connection status unavailable" : !online ? (device?.scopedVm ? "Oracle Stock Update VM is offline" : "Start the Stock Update worker app") :
+  const busy = pageLocked;
+  const offlineTitle = !oraclePilot ? "Start the Stock Update worker app" :
+    pairingInProgress ? "Awaiting pairing" : oracleState === "unlinked" ? "Pairing required" :
+    oracleState === "offline" ? "Oracle unavailable" : "Checking Oracle connection";
+  const title = connectionLost ? "Updates paused — reconnecting" : !snapshot.ok ? "Connection status unavailable" : !online ? offlineTitle :
     device?.state === "error" ? "Worker needs attention" : device?.state === "stopping" ? "Stopping after the current job" :
     active ? `${active.kind === "APPLY" ? "Applying" : "Scanning"} · ${active.dealerName}` :
-    queued === 0 && latestFinished ? stockJobOutcome(latestFinished) :
+    pending || device?.pendingCommand ? "Request in progress" :
+    running ? "Processing stock" : queued > 0 ? "Stock check queued" :
+    message ? message : latestFinished ? stockJobOutcome(latestFinished) :
     readyCount > 0 ? "Ready for review" : device?.state === "stopped" ? "Worker stopped" :
     running ? "Connected · waiting for queued work" : "Connected · ready to start";
 
@@ -108,26 +116,25 @@ export function StockWorkerDashboard({ initial, jobs, readyCount, children, head
     return () => { stopped = true; clearInterval(timer); clearInterval(clock); document.removeEventListener("visibilitychange", visible); };
   }, [managedSnapshot]);
 
-  const compact = online && !connectionLost && !busy && !running && !pending && !device?.pendingCommand
-    && device?.state !== "error" && !message && !expanded;
-
-  const buttons = <>
-    <StockWorkerCommandButton running={running} pending={pending} pendingCommand={Boolean(device?.pendingCommand)}
-      stopping={device?.state === "stopping"} disabled={!selection.canAct} onClick={selection.startOrStop} iconOnly />
-    {!compact && <button type="button" onClick={() => setExpanded(value => !value)} aria-expanded={expanded} aria-controls="stock-worker-activity"
-      className="min-h-11 rounded-md border border-border px-3 text-sm text-text-primary hover:bg-surface-elevated focus-visible:outline focus-visible:outline-2 focus-visible:outline-neon-blue-400">{expanded ? "Hide activity" : "Show activity"}</button>}
-  </>;
+  const expandedStatus = busy;
+  const badge = connectionLost ? "Reconnecting" : !snapshot.ok ? "Unavailable" : online ? (device?.scopedVm ? "Oracle Connected" : "Windows Connected") :
+    pairingInProgress ? "Pairing" : oraclePilot && oracleState === "unlinked" ? "Unpaired" :
+    oraclePilot && oracleState === "checking" ? "Checking" : "Offline";
+  const detail = message || (pending || device?.pendingCommand ? "Waiting for acknowledgement" :
+    active ? elapsed(active.startedAt, now) || "Processing stock" :
+    queuedHere && !running ? `${queued} queued` : phase);
+  const resumeQueue = queuedHere && !running && !active && !pending && !device?.pendingCommand && controls.canCommand && controls.requestRun;
 
   return <StockWorkerControlProvider value={controls}><StockDealerSelectionProvider value={selection}>
     {/* Keep document height stable as the navbar scrolls out and the inner viewport expands. */}
-    <div className={dockVisible ? "min-h-[calc(100dvh-1rem)]" : undefined}>
-    <div ref={viewport.ref} style={{ height: viewport.height }} className={dockVisible ? "flex min-h-0 flex-col" : undefined}>
-    <div data-stock-worker-content="" style={dockVisible ? { containerType: "size" } : undefined} className={dockVisible ? "min-h-0 flex-1 space-y-8 overflow-y-auto pr-2 pb-6" : "space-y-8"}>
-    {typeof header === "function" ? header(oraclePilot && oracleState === "linked" ? <span aria-label="Oracle VM connected" className="rounded-full border border-neon-blue-500/40 px-3 py-1 text-xs font-medium text-neon-blue-400">Connected</span> : null) : header}
+    <div className="min-h-[calc(100dvh-1rem)]">
+    <div ref={viewport.ref} style={{ height: viewport.height }} className="flex min-h-0 flex-col">
+    <div data-stock-worker-content="" style={{ containerType: "size" }} className="min-h-0 flex-1 space-y-8 overflow-y-auto pr-2 pb-6">
+    {typeof header === "function" ? header(oraclePilot && oracleState === "linked" ? <span aria-label="Oracle VM connected" className="rounded-full border border-neon-blue-500/40 px-3 py-1 text-xs font-medium text-neon-blue-400">Oracle Connected</span> : null) : header}
     {!online ? offlineContent : null}
     {oraclePilot && oracleEnvironment ? (oracleState !== "linked" && !pairingInProgress && <OracleWorkerConnection state={oracleState} environment={oracleEnvironment} openWindows={lifecycle.open} pending={pending} windowsOnline={online && !device?.scopedVm} launchFeedback={<>
       {lifecycle.message && <p role="status" className="text-sm text-text-secondary">{lifecycle.message}</p>}
-      {lifecycle.launchFallback}
+      {!pageLocked && lifecycle.launchFallback}
       {lifecycle.launchFailed && downloadFallback}
     </>} />) : <section aria-label="Worker connection" className="space-y-3 rounded-xl border border-border bg-surface-elevated p-4">
       <div className="flex flex-wrap items-start justify-between gap-3">
@@ -142,7 +149,7 @@ export function StockWorkerDashboard({ initial, jobs, readyCount, children, head
         {online && !device?.scopedVm ? <button type="button" disabled={!controls.canCommand || pending} onClick={() => controls.command("close")} className="min-h-11 rounded-md border border-border px-4 text-sm text-text-primary disabled:opacity-50">Close app safely</button> : null}
       </div>
       {lifecycle.message ? <p role="status" className="text-sm text-text-secondary">{lifecycle.message}</p> : null}
-      {lifecycle.launchFallback}
+      {!pageLocked && lifecycle.launchFallback}
       {!online && lifecycle.launchFailed ? downloadFallback : null}
       {message && !online ? <p role="status" className="text-sm text-text-secondary">{message}</p> : null}
       {devices.length > 1 ? <label className="block text-sm text-text-secondary">Computer <select disabled={pending} className="ml-2 rounded-md border border-border bg-surface p-2 text-text-primary" value={device?.deviceId ?? ""} onChange={event => setSelected(event.target.value)}>
@@ -150,33 +157,41 @@ export function StockWorkerDashboard({ initial, jobs, readyCount, children, head
       </select></label> : null}
       {online ? <>
       <div className="flex flex-wrap gap-x-5 gap-y-1 text-sm text-text-secondary"><span>{queued} queued</span><span>{activeJobs.length} processing</span><a href="#stock-review-results" className="text-neon-blue-400 hover:underline">{readyCount} ready for review</a></div>
-      {queued > 0 && !running ? <p className="text-sm text-text-secondary">Queued work is ready. Click Start worker without selecting dealers to process it; select dealers only for new scans.</p> : null}
+      {queued > 0 && !running ? <p className="text-sm text-text-secondary">Use Start queued work in the footer to process the saved queue.</p> : null}
       </> : null}
     </section>}
     {oraclePilot && oracleState === "linked" && lifecycle.message && <p role="status" className="text-sm text-text-secondary">{lifecycle.message}</p>}
     {children}
     </div>
-    <footer ref={footer} aria-label="Stock Update" hidden={!dockVisible} data-stock-worker-dock="" data-compact={compact} className="shrink-0 border-t-2 border-neon-blue-500/70 bg-canvas pb-[env(safe-area-inset-bottom)] text-text-secondary">
-      <div className="h-0.5 overflow-hidden" role={busy ? "progressbar" : undefined}
-        aria-label={busy ? "Stock update in progress" : undefined} aria-hidden={busy ? undefined : true}>
-        <div className={`h-full bg-neon-blue-500 ${busy ? progressStyles.moving : "w-0"}`} />
-      </div>
-      <div className="flex flex-wrap items-center gap-x-5 gap-y-2 py-3">
-        <button type="button" onClick={() => setExpanded(value => !value)} aria-label={expanded ? "Hide worker activity" : "Show worker activity"}
-          aria-expanded={expanded} aria-controls="stock-worker-activity" title={title}
-          className="flex min-h-11 shrink-0 items-center rounded-md focus-visible:outline focus-visible:outline-2 focus-visible:outline-neon-blue-400">
-          <span className="text-sm font-medium text-text-secondary">Stock Update</span>
-        </button>
-        <div className="min-w-0 flex-1"><p role="status" className="text-sm text-text-secondary">{title}</p>
-          <p className="text-xs text-text-secondary">{active ? elapsed(active.startedAt, now) : online && latestFinished && queued === 0 ? "Run complete. Review the results above." : online ? phase : "Waiting for a connection"}{activeJobs.length > 1 ? ` · ${activeJobs.length} jobs processing` : ""}</p></div>
-        <div data-stock-worker-commands="" className="flex flex-wrap gap-2">{buttons}</div>
-      </div>
-      {message ? <p role="status" className="px-4 pb-3 text-sm text-text-secondary">{message}</p> : null}
-      {device?.pendingCommand ? <p className="px-4 pb-3 text-xs text-text-secondary">{device.pendingCommand.action === "start" ? "Start" : device.pendingCommand.action === "close" ? "Close app" : "Safe stop"} is awaiting acknowledgement from the app.</p> : null}
+    <footer ref={footer} aria-label="Stock Updater" data-stock-worker-dock="" data-compact={!expandedStatus && !expanded} className="shrink-0 border-t border-neon-blue-500/70 bg-canvas pb-[env(safe-area-inset-bottom)] text-text-secondary">
       {expanded ? <div id="stock-worker-activity" className="max-h-[35vh] overflow-y-auto border-t border-border px-4 py-3">
         <h3 className="mb-2 text-sm font-semibold text-text-primary">Recent worker activity</h3>
         {device?.activity.length ? <ol className="space-y-1 text-sm text-text-secondary">{[...device.activity].reverse().map(event => <li key={`${device.instanceId}:${event.sequence}`} className="flex gap-3"><time className="shrink-0 tabular-nums text-text-tertiary" dateTime={event.at}>{new Date(event.at).toLocaleTimeString("en-GB")}</time><span>{event.text}</span></li>)}</ol> : <p className="text-sm text-text-secondary">No activity yet.</p>}
       </div> : null}
+      <div className={progressStyles.progressTrack} role={busy ? "progressbar" : undefined}
+        aria-label={busy ? "Stock update in progress" : undefined} aria-hidden={busy ? undefined : true}>
+        {busy && <div className={`h-full bg-neon-blue-500 ${progressStyles.moving}`} />}
+      </div>
+      <div className={progressStyles.footerRow} data-active={expandedStatus}>
+        <div className="min-w-0">
+          <div className={progressStyles.summary}><strong className="shrink-0 text-sm font-medium text-text-primary">Stock Updater</strong>
+            <p role="status" title={title} className="truncate text-xs">{title}</p>
+          </div>
+          <div className={progressStyles.details} data-visible={expandedStatus} aria-hidden={!expandedStatus}>
+            <div className="min-h-0 overflow-hidden"><p className="truncate text-xs" title={detail}>{detail}</p></div>
+          </div>
+        </div>
+        <div className={progressStyles.footerControls}>
+          <span className={`whitespace-nowrap rounded-full border px-2 text-xs ${online && !connectionLost ? "border-neon-blue-500/40 text-neon-blue-400" : "border-border"}`}>{badge}</span>
+          <button type="button" onClick={() => setExpanded(value => !value)} aria-expanded={expanded} aria-controls="stock-worker-activity"
+            className="whitespace-nowrap rounded-sm text-xs text-neon-blue-400 underline underline-offset-2">{expanded ? "Hide activity" : "Show activity"}</button>
+          {running && <span data-stock-worker-commands=""><StockWorkerCommandButton running pending={pending} pendingCommand={Boolean(device?.pendingCommand)}
+            stopping={device?.state === "stopping"} disabled={!controls.canCommand} onClick={() => controls.command("stop")} iconOnly /></span>}
+          {lifecycle.pending && lifecycle.launchFallback}
+          {resumeQueue && <button type="button" className="rounded-md border border-border px-2 py-1 text-xs text-neon-blue-400"
+            onClick={() => void resumeQueue(async () => jobs.filter(job => job.status === "QUEUED").map(job => job.id))}>Start queued work</button>}
+        </div>
+      </div>
     </footer>
     </div>
     </div>
