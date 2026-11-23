@@ -99,7 +99,7 @@ it("starts the dashboard-selected computer", async () => {
 it("locks the picker while retaining footer STOP without selection or new queues", async () => {
   renderPicker(connected([device({ state: "running" })]));
   const footer = within(screen.getByRole("contentinfo", { name: "Stock Updater" }));
-  expect(document.querySelector("[data-stock-worker-content]")).not.toHaveAttribute("inert");
+  expect(document.querySelector("[data-stock-worker-content]")).toHaveAttribute("inert");
   expect(document.querySelector("[data-stock-worker-backdrop]")).toBeInTheDocument();
   fireEvent.click(picker().getByRole("button", { name: "Stop safely" }));
   expect(command).not.toHaveBeenCalled();

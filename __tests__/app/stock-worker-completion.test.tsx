@@ -46,6 +46,23 @@ describe("report-backed review counts", () => {
 });
 
 describe("completion summaries", () => {
+  it("keeps this run's finished dealers visible alongside pending jobs and excludes earlier history", () => {
+    const queue = (jobs: ReturnType<typeof job>[], blocked = true) => <StockWorkerCompletion
+      jobs={jobs} blocked={blocked} canShow={() => true}
+      liveQueue={current => <output>{current.map(row => row.id + "/" + row.status).join(", ")}</output>}
+    />;
+    const old = job("Earlier dealer", "SUCCEEDED");
+    const view = render(queue([old, job("First", "LEASED"), job("Second", "QUEUED")]));
+    expect(screen.getByRole("status")).toHaveTextContent("First/LEASED, Second/QUEUED");
+    view.rerender(queue([old, job("First", "SUCCEEDED"), job("Second", "LEASED")]));
+    expect(screen.getByRole("status").textContent).toBe("First/SUCCEEDED, Second/LEASED");
+    const completed = [old, job("First", "SUCCEEDED"), job("Second", "FAILED")];
+    view.rerender(queue(completed, false));
+    expect(screen.getByRole("dialog")).toHaveTextContent("Second");
+    expect(screen.getByRole("dialog")).not.toHaveTextContent("Earlier dealer");
+    view.rerender(queue(completed));
+    expect(screen.getByRole("status")).toBeEmptyDOMElement();
+  });
   it.each([0, 1, 4])("renders the exact success text and colours for %i review listings", async reviewListingCount => {
     const base = { ...job("Island Motors", "LEASED"), reportStatus: "PENDING_REVIEW", reviewListingCount };
     const view = render(<StockWorkerCompletion jobs={[base]} canShow={() => true} />);

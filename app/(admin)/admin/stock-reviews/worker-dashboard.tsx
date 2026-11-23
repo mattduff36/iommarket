@@ -194,8 +194,8 @@ export function StockWorkerDashboard({ initial, jobs, readyCount, children, head
     </footer>
     </div>
     </div>
-    <StockWorkerPageLock active={pageLocked} footer={footer} />
-    <StockWorkerCompletion jobs={jobs} canShow={canRefreshStockPage} blocked={pageLocked} />
+    <StockWorkerCompletion jobs={jobs} canShow={canRefreshStockPage} blocked={pageLocked}
+      liveQueue={current => <StockWorkerPageLock footer={footer} jobs={current} badge={badge} status={title} />} />
     {lifecycle.dialog}
   </StockDealerSelectionProvider></StockWorkerControlProvider>;
 }

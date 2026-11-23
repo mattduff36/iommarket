@@ -9,9 +9,6 @@ declare global {
     StockWorkerPageLock: { lockStockWorkerPage: typeof lockStockWorkerPage };
     releaseStockWorkerLock: () => void;
     stockLockClicks: Record<string, number>;
-    stockLockWarnings: number;
-    stockTouchScrollEnded: boolean;
-    clearStockTouchScrollListener: () => void;
   }
 }
 
@@ -57,7 +54,6 @@ beforeEach(async () => {
   await page.addScriptTag({ content: productionCode });
   await page.evaluate(() => {
     window.stockLockClicks = {};
-    window.stockLockWarnings = 0;
     for (const id of ["header", "sidebar", "review", "nested-edit", "stop"]) {
       document.getElementById(id)!.addEventListener("click", () => { window.stockLockClicks[id] = (window.stockLockClicks[id] ?? 0) + 1; });
     }
@@ -71,9 +67,9 @@ beforeEach(async () => {
 
 async function lock() {
   await page.evaluate(() => {
-    window.releaseStockWorkerLock = window.StockWorkerPageLock.lockStockWorkerPage(document.getElementById("dock")!, {
-      onBlockedClick: () => { window.stockLockWarnings += 1; },
-    });
+    const queue = document.createElement("div"); queue.id = "queue"; queue.style.cssText="position:fixed;top:0;left:20%;width:50%;z-index:2147483647;pointer-events:none"; queue.innerHTML = '<ol style="overflow:auto;overscroll-behavior:contain;height:100px;pointer-events:auto" tabindex="0"><li style="height:900px">Live dealer queue</li></ol>'; document.body.append(queue);
+    const release = window.StockWorkerPageLock.lockStockWorkerPage(document.getElementById("dock")!, queue);
+    window.releaseStockWorkerLock = () => {release(); queue.remove();};
   });
 }
 async function clickPoint(selector: string) {
@@ -115,132 +111,30 @@ async function wheelOver(selector: string, delta: number) {
   await page.mouse.wheel(0, delta);
 }
 
-async function swipeUp(selector: string) {
-  const rect = await page.locator(selector).boundingBox();
-  if (!rect) throw new Error(`Missing bounds for ${selector}`);
-  const session = await page.context().newCDPSession(page);
-  const x = rect.x + rect.width / 2;
-  const start = Math.min(rect.y + rect.height - 15, 650);
-  await page.locator(selector).evaluate(element => {
-    window.stockTouchScrollEnded = false;
-    const ended = (event: Event) => {
-      if (event.target === element) window.stockTouchScrollEnded = true;
-    };
-    // The production gesture barrier stops propagation before element listeners.
-    window.addEventListener("scrollend", ended, true);
-    window.clearStockTouchScrollListener = () => window.removeEventListener("scrollend", ended, true);
-  });
-  try {
-    await session.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: [{ x, y: start }] });
-    for (let step = 1; step <= 8; step += 1) {
-      await session.send("Input.dispatchTouchEvent", { type: "touchMove", touchPoints: [{ x, y: start - step * 12 }] });
-      await page.waitForTimeout(16);
-    }
-    // Model a deliberate pan: stop the finger before lifting, rather than fling.
-    // A stable scrollTop alone does not mean Chromium ended its native gesture;
-    // the next tap can otherwise stop that fling instead of activating STOP.
-    await page.waitForTimeout(180);
-    await session.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
-    await page.waitForFunction(() => window.stockTouchScrollEnded, undefined, { timeout: 5_000 });
-  } finally {
-    await page.evaluate(() => window.clearStockTouchScrollListener());
-    await session.detach();
-  }
-}
-
 describe("production stock worker page isolation in Chromium", () => {
-  it("scrolls real nested results, the page and footer activity with the wheel, without warnings", async () => {
+  it("freezes the document and nested results while retaining wheel scrolling of the queue and activity", async () => {
     await lock();
-    expect(await page.locator("[data-stock-worker-backdrop] > div").evaluateAll(elements => elements.every(element => getComputedStyle(element).pointerEvents === "none"))).toBe(true);
-    await wheelOver("#nested", 120);
-    await page.waitForFunction(() => document.getElementById("nested")!.scrollTop >= 80);
-    expect(await page.locator("#content").evaluate(element => element.scrollTop)).toBe(0);
-    expect(await page.evaluate(() => window.scrollY)).toBe(0);
-    await page.evaluate(() => { const nested = document.getElementById("nested")!; nested.scrollTop = nested.scrollHeight; });
-    await wheelOver("#nested", 160);
-    await page.waitForFunction(() => document.getElementById("content")!.scrollTop >= 80);
-    await page.mouse.move(50, 400);
-    await page.mouse.wheel(0, 80);
-    await page.waitForFunction(() => window.scrollY >= 40);
-    await expectFooterUncovered();
+    await wheelOver("#nested",120);
+    await page.mouse.move(50,400);
+    await page.mouse.wheel(0,100);
+    await wheelOver("#queue ol",120);
+    await page.waitForFunction(() => document.querySelector("#queue ol")!.scrollTop > 0);
+    expect(await page.locator("#nested").evaluate(e => e.scrollTop)).toBe(0);
+    expect(await page.evaluate(() => scrollY)).toBe(0);
     await page.locator("#toggle").click();
-    await wheelOver("#activity", 120);
-    await page.waitForFunction(() => document.getElementById("activity")!.scrollTop >= 80);
-    expect(await page.evaluate(() => window.stockLockWarnings)).toBe(0);
-    await clickPoint("#stop");
-    expect(await page.evaluate(() => window.stockLockClicks.stop)).toBe(1);
-    expect(await page.evaluate(() => window.stockLockWarnings)).toBe(0);
-    await page.evaluate(() => window.releaseStockWorkerLock());
-    const position = await page.locator("#activity").evaluate(element => element.scrollTop);
-    await wheelOver("#activity", 100);
-    await page.waitForFunction(previous => document.getElementById("activity")!.scrollTop > previous, position);
-  });
-
-  it("allows native scrollbar dragging without treating it as a blocked click", async () => {
-    await page.addStyleTag({ content: "#nested::-webkit-scrollbar { width:16px } #nested::-webkit-scrollbar-thumb { background:#888 }" });
-    await lock();
-    const bar = await page.locator("#nested").evaluate(element => {
-      if (!(element instanceof HTMLElement)) throw new Error("Expected HTML scroll container");
-      const rect = element.getBoundingClientRect();
-      const gutter = element.offsetWidth - element.clientWidth;
-      return { x: rect.right - (gutter > 0 ? gutter / 2 : 8),
-        y: rect.top, height: rect.height, thumb: element.clientHeight * element.clientHeight / element.scrollHeight };
-    });
-    await page.mouse.move(bar.x, bar.y + Math.max(4, bar.thumb / 2));
-    await page.mouse.down();
-    await page.mouse.move(bar.x, bar.y + bar.height * 0.7, { steps: 8 });
-    await page.mouse.up();
-    await page.waitForFunction(() => document.getElementById("nested")!.scrollTop > 100);
-    expect(await page.evaluate(() => window.stockLockWarnings)).toBe(0);
-  });
-
-  it("allows genuine touch panning of nested and outer results without a tap warning", async () => {
-    await page.setViewportSize({ width: 390, height: 844 });
-    await lock();
-    await swipeUp("#nested");
-    await page.waitForFunction(() => document.getElementById("nested")!.scrollTop > 30);
-    expect(await page.locator("#content").evaluate(element => element.scrollTop)).toBe(0);
-    await swipeUp("#content");
-    await page.waitForFunction(() => document.getElementById("content")!.scrollTop > 30);
-    expect(await page.evaluate(() => window.stockLockWarnings)).toBe(0);
+    await wheelOver("#activity",120);
+    await page.waitForFunction(() => document.getElementById("activity")!.scrollTop > 0);
     await expectFooterUncovered();
-    await page.locator("#stop").tap();
-    expect(await page.evaluate(() => window.stockLockClicks.stop)).toBe(1);
-    expect(await page.evaluate(() => window.stockLockWarnings)).toBe(0);
-    // A stationary tap is blocked and warns, unlike the preceding scroll gestures.
-    await page.touchscreen.tap(30, 30);
-    expect(await page.evaluate(() => window.stockLockClicks.header)).toBeUndefined();
-    expect(await page.evaluate(() => window.stockLockWarnings)).toBe(1);
-  });
-
-  it("supports page-scrolling keys in the inspected container while retaining footer keyboard activation", async () => {
-    await lock();
-    const bounds = await page.locator("#nested").boundingBox();
-    await page.mouse.move(bounds!.x + 30, bounds!.y + 70);
-    await page.keyboard.press("PageDown");
-    await page.waitForFunction(() => document.getElementById("nested")!.scrollTop > 100);
-    await page.keyboard.press("End");
-    await page.waitForFunction(() => { const nested = document.getElementById("nested")!; return nested.scrollTop >= nested.scrollHeight - nested.clientHeight - 1; });
-    await page.keyboard.press("Home");
-    await page.waitForFunction(() => document.getElementById("nested")!.scrollTop === 0);
-    await page.keyboard.press("ArrowDown");
-    await page.waitForFunction(() => document.getElementById("nested")!.scrollTop >= 40);
-    await page.keyboard.press("ArrowUp");
-    await page.waitForFunction(() => document.getElementById("nested")!.scrollTop === 0);
-    expect(await page.evaluate(() => window.stockLockWarnings)).toBe(0);
-    await page.locator("#stop").focus();
-    await page.keyboard.press("Space");
-    expect(await page.evaluate(() => window.stockLockClicks.stop)).toBe(1);
-    expect(await page.evaluate(() => window.stockLockWarnings)).toBe(0);
-  });
-
-  it("blocks page pointer/keyboard input and new portals, but keeps STOP and live rendering usable", async () => {
+    await page.evaluate(() => window.releaseStockWorkerLock());
+    await wheelOver("#nested",120);
+    await page.waitForFunction(() => document.getElementById("nested")!.scrollTop > 0);
+  });  it("blocks page pointer/keyboard input and new portals, but keeps STOP and live rendering usable", async () => {
     await page.locator("#editor").focus();
     const before = await page.locator("#dock").boundingBox();
     await lock();
     expect(await page.locator("#dock").boundingBox()).toEqual(before);
-    expect(await page.locator("html").evaluate(element => element.style.overflow)).toBe("");
-    expect(await page.locator("#content").getAttribute("inert")).toBeNull();
+    expect(await page.locator("html").evaluate(element => element.style.overflow)).toBe("hidden");
+    expect(await page.locator("#content").getAttribute("inert")).toBe("");
     expect(await page.locator("#dock").evaluate(element => element.closest("[inert]") === null)).toBe(true);
     for (const selector of ["#header", "#sidebar", "#review"]) await clickPoint(selector);
     expect(await page.evaluate(() => window.stockLockClicks)).toEqual({});
@@ -250,7 +144,7 @@ describe("production stock worker page isolation in Chromium", () => {
     expect(await page.evaluate(() => window.stockLockClicks.stop)).toBeUndefined();
     for (const key of ["Tab", "Tab", "Shift+Tab", "Tab", "Tab", "Tab"]) {
       await page.keyboard.press(key);
-      expect(await page.evaluate(() => document.getElementById("dock")!.contains(document.activeElement))).toBe(true);
+      expect(await page.evaluate(() => Boolean(document.activeElement?.closest("#dock,#queue")))).toBe(true);
     }
     await page.locator("#stop").focus();
     await page.keyboard.press("Enter");
@@ -270,9 +164,9 @@ describe("production stock worker page isolation in Chromium", () => {
       sibling.textContent = "New page control";
       document.getElementById("dock")!.before(sibling);
     });
-    expect(await page.locator("#portal").getAttribute("inert")).toBeNull();
+    expect(await page.locator("#portal").getAttribute("inert")).toBe("");
     expect(await page.locator("#new-sibling").getAttribute("inert")).toBe("");
-    expect(await page.locator("#portal-editor").getAttribute("inert")).toBe("");
+    expect(await page.locator("#portal-editor").evaluate(element => Boolean(element.closest("[inert]")))).toBe(true);
     await clickPoint("#portal-button");
     expect(await page.evaluate(() => window.stockLockClicks.portal)).toBeUndefined();
     await page.locator("#portal-editor").evaluate(element => element.focus());
@@ -286,7 +180,6 @@ describe("production stock worker page isolation in Chromium", () => {
     });
     await page.waitForFunction(() => document.getElementById("live")!.textContent !== "Live result 1");
     expect(await page.locator("#live").getAttribute("data-instance")).toBe("still-mounted");
-    const warningsBeforeRelease = await page.evaluate(() => window.stockLockWarnings);
     await page.evaluate(() => window.releaseStockWorkerLock());
     expect(await page.locator("[data-stock-worker-backdrop]").count()).toBe(0);
     expect(await page.locator("html").evaluate(element => element.style.overflow)).toBe("");
@@ -298,7 +191,6 @@ describe("production stock worker page isolation in Chromium", () => {
     expect(await page.locator("#editor").inputValue()).toBe("editable again");
     await clickPoint("#header");
     expect(await page.evaluate(() => window.stockLockClicks.header)).toBe(1);
-    expect(await page.evaluate(() => window.stockLockWarnings)).toBe(warningsBeforeRelease);
   });
 
   it("keeps the in-flow mobile/expanded footer uncovered through resize and scroll without jumps", async () => {
@@ -317,7 +209,7 @@ describe("production stock worker page isolation in Chromium", () => {
     expect(expanded!.height).toBeGreaterThan(initialBounds!.height);
     expect(expanded!.y + expanded!.height).toBeLessThanOrEqual(844);
     const dimmer = await page.locator("[data-stock-worker-backdrop] > div").evaluateAll(elements => elements.map(element => ({ rect: element.getBoundingClientRect().toJSON(), color: getComputedStyle(element).backgroundColor })));
-    expect(dimmer.every(panel => panel.color === "rgba(0, 0, 0, 0.35)")).toBe(true);
+    expect(dimmer.every(panel => panel.color === "rgba(6, 8, 12, 0.62)")).toBe(true);
     await page.setViewportSize({ width: 480, height: 720 });
     await page.evaluate(() => window.scrollTo(0, 12));
     await page.waitForFunction(() => window.scrollY === 12);
@@ -335,36 +227,6 @@ describe("production stock worker page isolation in Chromium", () => {
     expect(await page.locator("#dock").evaluate(element => getComputedStyle(element).position)).toBe("static");
   });
 
-  it("isolates native picker/edit controls while their panels scroll and restores them on unlock", async () => {
-    await page.evaluate(() => {
-      const controls = document.createElement("div");
-      controls.innerHTML = '<select id="native-select" style="width:160px;height:44px"><option value="one">First computer</option><option value="two">Second computer</option></select><input id="native-check" type="checkbox"><input id="native-range" type="range" value="40"><input id="native-prior" inert="preserve-control">';
-      document.getElementById("content")!.prepend(controls);
-    });
-    await lock();
-    expect(await page.locator("#content").getAttribute("inert")).toBeNull();
-    for (const id of ["native-select", "native-check", "native-range"]) {
-      expect(await page.locator("#" + id).getAttribute("inert")).toBe("");
-    }
-    for (const id of ["native-select", "native-check"]) {
-      const bounds = await page.locator("#" + id).boundingBox();
-      await page.touchscreen.tap(bounds!.x + bounds!.width / 2, bounds!.y + bounds!.height / 2);
-    }
-    expect(await page.locator("#native-select").inputValue()).toBe("one");
-    expect(await page.locator("#native-check").isChecked()).toBe(false);
-    expect(await page.evaluate(() => window.stockLockWarnings)).toBe(2);
-    await wheelOver("#nested", 120);
-    await page.waitForFunction(() => document.getElementById("nested")!.scrollTop > 30);
-    expect(await page.evaluate(() => window.stockLockWarnings)).toBe(2);
-    await page.evaluate(() => window.releaseStockWorkerLock());
-    for (const id of ["native-select", "native-check", "native-range"]) {
-      expect(await page.locator("#" + id).getAttribute("inert")).toBeNull();
-    }
-    expect(await page.locator("#native-prior").getAttribute("inert")).toBe("preserve-control");
-    await clickPoint("#native-check");
-    expect(await page.locator("#native-check").isChecked()).toBe(true);
-  });
-
   it("restores prior ancestor inert/tabindex, tolerates disabled controls, and cleans up on removal", async () => {
     await page.locator("#review").focus();
     await page.evaluate(() => {
@@ -374,9 +236,9 @@ describe("production stock worker page isolation in Chromium", () => {
     });
     await lock();
     expect(await page.locator("main").getAttribute("inert")).toBeNull();
-    expect(await page.evaluate(() => document.activeElement?.id)).toBe("dock");
+    expect(await page.evaluate(() => Boolean(document.activeElement?.closest("#dock,#queue")))).toBe(true);
     await page.keyboard.press("Tab");
-    expect(await page.evaluate(() => document.activeElement?.id)).toBe("dock");
+    expect(await page.evaluate(() => Boolean(document.activeElement?.closest("#dock,#queue")))).toBe(true);
     await page.evaluate(() => window.releaseStockWorkerLock());
     expect(await page.locator("main").getAttribute("inert")).toBe("prior-ancestor");
     expect(await page.locator("#dock").getAttribute("tabindex")).toBe("3");

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import type { LiveStockJob } from "./worker-dashboard";
 
@@ -26,10 +26,13 @@ export function stockJobOutcome(job: LiveStockJob) {
   return `${job.dealerName}: finished — check the saved result`;
 }
 
-export function StockWorkerCompletion({ jobs, canShow, blocked = false }: { jobs: LiveStockJob[]; canShow: () => boolean; blocked?: boolean }) {
+export function StockWorkerCompletion({ jobs, canShow, blocked = false, liveQueue }: {
+  jobs: LiveStockJob[]; canShow: () => boolean; blocked?: boolean; liveQueue?: (current: LiveStockJob[]) => ReactNode;
+}) {
   // Existing history is a baseline, not a new completion notification.
   const seen = useRef(new Set(jobs.map(job => job.id)));
   const run = useRef(new Map(jobs.filter(job => !stockJobFinished(job)).map(job => [job.id, job])));
+  const [visibleRun, setVisibleRun] = useState(() => [...run.current.values()]);
   const waiting = useRef<LiveStockJob[][]>([]);
   const [notice, setNotice] = useState<LiveStockJob[] | null>(null);
 
@@ -40,11 +43,15 @@ export function StockWorkerCompletion({ jobs, canShow, blocked = false }: { jobs
     }
     // Retain observed jobs beyond the recent-history limit. An active job that
     // disappears is not evidence of completion.
+    if (run.current.size) setVisibleRun([...run.current.values()]);
     if (run.current.size && [...run.current.values()].every(stockJobFinished)) {
       waiting.current.push([...run.current.values()]);
       run.current.clear();
     }
   }, [jobs]);
+  useEffect(() => {
+    if (!blocked && !run.current.size) setVisibleRun(previous => previous.length ? [] : previous);
+  }, [blocked, jobs]);
 
   useEffect(() => {
     function showNext() {
@@ -56,7 +63,7 @@ export function StockWorkerCompletion({ jobs, canShow, blocked = false }: { jobs
     return () => window.clearInterval(timer);
   }, [notice, canShow, blocked]);
 
-  return <Dialog open={!blocked && notice !== null} onOpenChange={open => { if (!open && !blocked) setNotice(null); }}>
+  return <>{blocked && liveQueue?.(visibleRun)}<Dialog open={!blocked && notice !== null} onOpenChange={open => { if (!open && !blocked) setNotice(null); }}>
     <DialogContent onPointerDownOutside={event => event.preventDefault()}>
       <DialogTitle>Stock Updater run finished</DialogTitle>
       <DialogDescription className="mt-3">
@@ -78,5 +85,5 @@ export function StockWorkerCompletion({ jobs, canShow, blocked = false }: { jobs
       </ul>
       <button type="button" className="mt-4 rounded-md bg-neon-blue-500 px-4 py-2 text-sm font-semibold text-white" onClick={() => setNotice(null)}>Got it</button>
     </DialogContent>
-  </Dialog>;
+  </Dialog></>;
 }

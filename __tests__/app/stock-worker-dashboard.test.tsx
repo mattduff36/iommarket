@@ -42,8 +42,8 @@ describe("Stock Reviews live worker", () => {
   document.body.append(navigation);
   const ui = (text: string) => <StockWorkerDashboard initial={initial} initialNow={Date.now()} jobs={[]} readyCount={0}><p>{text}</p></StockWorkerDashboard>;
   const view = render(ui("Live result one"));
-  expect(navigation).not.toHaveAttribute("inert");
-  expect(document.querySelector("[data-stock-worker-content]")).not.toHaveAttribute("inert");
+  expect(navigation).toHaveAttribute("inert");
+  expect(document.querySelector("[data-stock-worker-content]")).toHaveAttribute("inert");
   fireEvent.click(screen.getByText("Global navigation"));
   expect(navigate).not.toHaveBeenCalled();
   const dock = screen.getByRole("contentinfo", { name: "Stock Updater" });
@@ -115,7 +115,7 @@ describe("Stock Reviews live worker", () => {
   expect(footer).toHaveAttribute("data-stock-worker-dock");
   expect(footer.className).not.toMatch(/fixed|sticky/);
   expect(document.querySelector("[data-stock-worker-backdrop]")).toBeInTheDocument();
-  expect(document.querySelector("[data-stock-worker-content]")).not.toHaveAttribute("inert");
+  expect(document.querySelector("[data-stock-worker-content]")).toHaveAttribute("inert");
   expect(footer.closest("[inert]")).toBeNull();
   view.rerender(<StockWorkerDashboard dealers={[{ id: "dealer", name: "Island Motors" }]} initial={connected()} jobs={[]} readyCount={0} />);
   expect(screen.queryByRole("progressbar")).not.toBeInTheDocument();
