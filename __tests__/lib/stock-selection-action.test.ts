@@ -6,7 +6,10 @@ vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
 vi.mock("@/lib/rate-limit", () => ({ checkRateLimit: async () => ({ allowed: true }) }));
 vi.mock("@/lib/deployment/dealer-stock-sync", () => ({ getDealerStockSyncAvailability: () => ({ enabled: true }) }));
 vi.mock("@/lib/dealer-stock-sync/snapshot", () => ({ loadStockSyncSnapshot: mocks.load }));
-vi.mock("@/lib/dealer-stock-sync/fingerprint", () => ({ fingerprintSnapshot: mocks.fingerprint }));
+vi.mock("@/lib/dealer-stock-sync/fingerprint", () => ({
+  fingerprintSnapshot: mocks.fingerprint,
+  matchesStockFingerprint: (snapshot: unknown, saved: string) => mocks.fingerprint(snapshot) === saved,
+}));
 vi.mock("@/lib/dealer-stock-sync/draft-transfer", () => ({ transferStockDrafts: mocks.transfer }));
 vi.mock("@/lib/dealer-stock-sync/enqueue", () => ({ enqueueApplyJob: mocks.enqueue }));
 vi.mock("@/lib/email/draft-listing-notifications", () => ({ notifyReceivedDraftListings: mocks.notify }));

@@ -6,7 +6,7 @@ import { assertWorkerEnabled } from "../../lib/dealer-stock-sync/worker-guard";
 import { applyFrozenPlan, type ApplyWriter } from "../../lib/dealer-stock-sync/apply";
 import { scrapeFailureReason, type SourceCompleteness } from "../../lib/dealer-stock-sync/completeness";
 import { dealerSyncBlockReason } from "../../lib/dealer-stock-sync/eligibility";
-import { fingerprintSnapshot, type FingerprintSnapshot } from "../../lib/dealer-stock-sync/fingerprint";
+import { matchesStockFingerprint, type FingerprintSnapshot } from "../../lib/dealer-stock-sync/fingerprint";
 import { loadStockSyncSnapshot } from "../../lib/dealer-stock-sync/snapshot";
 import { ADMIN_SCOPED_LEASE_JOB_SQL, LEASE_JOB_SQL, SCOPED_LEASE_JOB_SQL } from "../../lib/dealer-stock-sync/lease";
 import { buildStockSyncPlan } from "../../lib/dealer-stock-sync/plan";
@@ -256,7 +256,7 @@ async function applyJob(
   if (payload.fingerprint !== report.fingerprint) throw new Error("Stale stock sync plan");
   const actions = (report.plan as { actions?: FingerprintSnapshot["actions"] }).actions ?? [];
   const snapshot = await loadStockSyncSnapshot(job.dealerId, actions);
-  if (!snapshot || fingerprintSnapshot(snapshot) !== report.fingerprint) throw new Error("Stale stock sync plan");
+  if (!snapshot || !matchesStockFingerprint(snapshot, report.fingerprint)) throw new Error("Stale stock sync plan");
   const { prepareStockImages, cleanupStockImages } = await import("./stock-images");
   const cleanup = cleanupPreparedImages ?? cleanupStockImages;
   const staged = await prepareStockImages(snapshot, job.id, upload, cleanup);

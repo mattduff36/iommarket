@@ -14,7 +14,7 @@ import { runLeasedJob, type DealerStockSyncGuard } from "@/scripts/dealer-stock-
 import { cleanupStockImages } from "@/scripts/dealer-stock-sync/stock-images";
 import { assertDesktopSourceUrl, desktopImageUrlRules } from "./desktop-source-policy";
 import { DESKTOP_JOB_LEASE_MS, type DesktopApplyStepInput, type DesktopApplyStepResult } from "./desktop-jobs";
-import { fingerprintSnapshot, type FingerprintSnapshot } from "./fingerprint";
+import { matchesStockFingerprint, type FingerprintSnapshot } from "./fingerprint";
 import { isOwnedListingImage } from "./images";
 import { dealerSyncBlockReason } from "./eligibility";
 import { loadStockSyncSnapshot } from "./snapshot";
@@ -141,7 +141,7 @@ export async function runDesktopApplyStep(
     persisted = progress.photos.map(photo => photo.image);
     if (report.status !== "APPROVED" || !report.approvedById ||
         dealerSyncBlockReason({ ...snapshot.dealer, role: snapshot.dealer.role as "USER" | "DEALER" | "ADMIN" }) ||
-        fingerprintSnapshot(snapshot) !== report.fingerprint) throw new Error(SAFE_FAILURE);
+        !matchesStockFingerprint(snapshot, report.fingerprint)) throw new Error(SAFE_FAILURE);
     const actor = await db.user.findUnique({
       where: { id: report.approvedById }, select: { role: true, disabledAt: true, deletedAt: true },
     });

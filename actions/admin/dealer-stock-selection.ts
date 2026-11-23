@@ -8,7 +8,7 @@ import { db } from "@/lib/db";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { getDealerStockSyncAvailability } from "@/lib/deployment/dealer-stock-sync";
 import { dealerSyncBlockReason } from "@/lib/dealer-stock-sync/eligibility";
-import { fingerprintSnapshot } from "@/lib/dealer-stock-sync/fingerprint";
+import { fingerprintSnapshot, matchesStockFingerprint } from "@/lib/dealer-stock-sync/fingerprint";
 import { blockedDismissalEvidence } from "@/lib/dealer-stock-sync/blocked-dismissals";
 import { loadStockSyncSnapshot } from "@/lib/dealer-stock-sync/snapshot";
 import { readPlanActions, planAfterCorrection } from "@/lib/dealer-stock-sync/review-edit";
@@ -50,7 +50,7 @@ export async function reviewDealerStockSelection(input: unknown) {
       if (!actions) return { error: STALE };
       const snapshot = await loadStockSyncSnapshot(report.dealerId, actions, tx);
       if (!snapshot || snapshot.binding.id !== report.bindingId) return { error: STALE };
-      if (fingerprintSnapshot(snapshot) !== report.fingerprint) {
+      if (!matchesStockFingerprint(snapshot, report.fingerprint)) {
         return { error: "Stock has changed since this scan. Run a new stock check for this dealer, then review the new results." };
       }
       if (dealerSyncBlockReason({ ...snapshot.dealer, role: snapshot.dealer.role as "USER" | "DEALER" | "ADMIN" })) {

@@ -169,6 +169,12 @@ export function discoverStockPageUrls(html: string, currentUrl: string) {
       const href = match[1].replace(/&amp;|&#0*38;/gi, "&");
       const url = new URL(href, currentUrl);
       if (url.origin !== origin) continue;
+      if (url.hostname === "www.manxcarwarehouse.im" &&
+        /^\/stock\/used-(?:cars|vehicles)-in-ballasalla-isle-of-man\/[1-9]\d*\/?$/i.test(url.pathname)) {
+        const page = Number(url.pathname.split("/").filter(Boolean).at(-1));
+        if (page > 1 && !url.hash && (url.search === "" || url.search === "?order=valuedesc")) found.add(url.href);
+        continue;
+      }
       if (url.searchParams.get("page") === "1" || /^\/cars\/page\/1\/?$/i.test(url.pathname)) continue;
       if (
         /\/used-cars\/\d+\/?$/i.test(url.pathname) ||

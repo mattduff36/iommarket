@@ -32,9 +32,10 @@ export interface FingerprintSnapshot {
 function stableStringify(value: unknown): string {
   if (Array.isArray(value)) return `[${value.map((item) => stableStringify(item)).join(",")}]`;
   if (value && typeof value === "object") {
-    const entries = Object.entries(value as Record<string, unknown>).sort(([left], [right]) =>
-      left.localeCompare(right),
-    );
+    // Prisma stores JSON object members with undefined values as absent.
+    const entries = Object.entries(value as Record<string, unknown>)
+      .filter(([, item]) => item !== undefined)
+      .sort(([left], [right]) => left.localeCompare(right));
     return `{${entries
       .map(([key, item]) => `${JSON.stringify(key)}:${stableStringify(item)}`)
       .join(",")}}`;
@@ -46,7 +47,7 @@ function sortedBy<T>(items: T[], key: (item: T) => string) {
   return [...items].sort((left, right) => key(left).localeCompare(key(right)));
 }
 
-export function fingerprintSnapshot(snapshot: FingerprintSnapshot) {
+function snapshotDigest(snapshot: FingerprintSnapshot, legacyCondition: boolean) {
   const canonical = {
     ...snapshot,
     listings: sortedBy(snapshot.listings, (item) => item.id),
@@ -54,7 +55,21 @@ export function fingerprintSnapshot(snapshot: FingerprintSnapshot) {
     actions: sortedBy(
       snapshot.actions,
       (item) => `${item.kind}:${item.sourceIdentityKey ?? ""}:${item.listingId ?? ""}`,
-    ),
+    ).map(action => legacyCondition && action.review && action.review.condition === undefined
+      ? { ...action, review: { ...action.review, condition: null } }
+      : action),
   };
   return createHash("sha256").update(stableStringify(canonical)).digest("hex");
+}
+
+export function fingerprintSnapshot(snapshot: FingerprintSnapshot) {
+  return snapshotDigest(snapshot, false);
+}
+
+export function matchesStockFingerprint(snapshot: FingerprintSnapshot, saved: string) {
+  if (fingerprintSnapshot(snapshot) === saved) return true;
+  // Older live reports hashed the scanner's explicit undefined condition as null.
+  // Reconstruct that representation and compare the entire current snapshot.
+  return snapshot.actions.some(action => action.review && action.review.condition === undefined) &&
+    snapshotDigest(snapshot, true) === saved;
 }
