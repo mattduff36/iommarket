@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { profileNameSchema } from "@/lib/validations/profile-name";
+import { hasOpeningHours, openingHoursSchema } from "@/lib/dealers/opening-hours";
 
 export const updateMyProfileSchema = z.object({
   name: profileNameSchema,
@@ -27,6 +28,8 @@ export const updateMyProfileSchema = z.object({
 export type UpdateMyProfileInput = z.infer<typeof updateMyProfileSchema>;
 
 export const updateDealerSelfProfileSchema = z.object({
+  openingHoursEnabled: z.boolean().optional(),
+  openingHours: openingHoursSchema.optional(),
   showStockSourceLinks: z.boolean().optional(),
   name: z
     .string()
@@ -58,7 +61,11 @@ export const updateDealerSelfProfileSchema = z.object({
     .max(30, "Phone number is too long.")
     .optional()
     .or(z.literal("")),
-}).strict();
+}).strict().superRefine((value, context) => {
+  if (value.openingHoursEnabled && (!value.openingHours || !hasOpeningHours(value.openingHours))) {
+    context.addIssue({ code: "custom", path: ["openingHours"], message: "Add opening times or an appointment-only day before displaying opening hours." });
+  }
+});
 export type UpdateDealerSelfProfileInput = z.infer<
   typeof updateDealerSelfProfileSchema
 >;

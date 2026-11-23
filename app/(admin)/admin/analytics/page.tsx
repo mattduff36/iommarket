@@ -31,7 +31,6 @@ import { analyticsRange, loadBusinessFunnel } from "@/lib/analytics/business-fun
 import { locateCities } from "@/lib/analytics/city-coordinates";
 import { MARKETPLACE_EVENTS } from "@/lib/analytics/events";
 import { loadGoogleAnalytics } from "@/lib/analytics/google-analytics";
-import { londonDate } from "@/lib/analytics/london-date";
 import { productionPreviewListingViewSql } from "@/lib/preview-packs/frontend-visibility";
 import { calendarDay, trendSeries } from "@/lib/analytics/trend-series";
 
@@ -51,8 +50,8 @@ export default async function AdminAnalyticsPage(props: {
 }) {
   await expireStaleLiveListings();
   const params = props.searchParams ? await props.searchParams : {};
-  const range = analyticsRange(params.range);
   const now = new Date();
+  const range = analyticsRange(params.range, now);
   const sampleVisibility = await getSampleVisibility();
   const liveWhere = applySampleListingVisibility(
     liveListingWhere(now),
@@ -60,6 +59,7 @@ export default async function AdminAnalyticsPage(props: {
   );
   const recentViewConditions = [
     Prisma.sql`views."createdAt" >= ${range.since}`,
+    Prisma.sql`views."createdAt" < ${range.until}`,
   ];
   const placeholderAuthPattern = `${PLACEHOLDER_AUTH_PREFIX}%`;
   if (!sampleVisibility.privateListings) {
@@ -147,7 +147,7 @@ export default async function AdminAnalyticsPage(props: {
       take: 10,
     }),
     db.$queryRaw<Array<{ day: string; count: bigint }>>(Prisma.sql`
-      SELECT DATE(views."createdAt") AS day, COUNT(*)::bigint AS count
+      SELECT DATE(views."createdAt" AT TIME ZONE 'UTC' AT TIME ZONE 'Europe/London') AS day, COUNT(*)::bigint AS count
       FROM "ListingView" AS views
       JOIN "Listing" AS listing ON listing."id" = views."listingId"
       JOIN "User" AS owner ON owner."id" = listing."userId"
@@ -155,7 +155,7 @@ export default async function AdminAnalyticsPage(props: {
       LEFT JOIN "User" AS viewer ON viewer."id" = views."viewerId"
       LEFT JOIN "DealerProfile" AS viewer_dealer ON viewer_dealer."userId" = viewer."id"
       WHERE ${Prisma.join(recentViewConditions, " AND ")}
-      GROUP BY DATE(views."createdAt")
+      GROUP BY DATE(views."createdAt" AT TIME ZONE 'UTC' AT TIME ZONE 'Europe/London')
       ORDER BY day ASC
     `),
     db.listing.count({ where: { ...liveWhere, dealerId: { not: null } } }),
@@ -179,10 +179,11 @@ export default async function AdminAnalyticsPage(props: {
   const [funnel, acquisition] = await Promise.all([
     loadBusinessFunnel({
       since: range.since,
+      until: range.until,
       sampleVisibility,
       liveWhere,
     }),
-    loadGoogleAnalytics({ since: range.since, until: now }),
+    loadGoogleAnalytics({ since: range.since, until: new Date(range.until.getTime() - 1) }),
   ]);
   const visitorsAvailable = acquisition.status === "available";
   const energyFmAvailable = visitorsAvailable || acquisition.status === "no-data";
@@ -190,8 +191,8 @@ export default async function AdminAnalyticsPage(props: {
     ? (100 * acquisition.energyFmSessions / acquisition.sessions).toLocaleString("en-GB", { maximumFractionDigits: 1 })
     : "0";
   const trend = trendSeries({
-    startDate: londonDate(range.since),
-    endDate: londonDate(now),
+    startDate: range.startDate,
+    endDate: range.endDate,
     visitors: visitorsAvailable ? acquisition.series : [],
     listingViews: recentViews.flatMap((day) => {
       const date = calendarDay(day.day);
@@ -227,7 +228,7 @@ export default async function AdminAnalyticsPage(props: {
       <AdminPageHeader
         title="Analytics"
         description="Track marketplace engagement, audience growth, and the listings attracting attention."
-        meta={<span>Database totals are authoritative. Visitor analytics include only consented browsers.</span>}
+        meta={<span>{range.startDate} to {range.endDate} · Complete Europe/London days; today is excluded. Visitor analytics include only consented browsers.</span>}
         actions={<AnalyticsRangeControl current={range.key} />}
       />
 
@@ -361,6 +362,8 @@ export default async function AdminAnalyticsPage(props: {
         <RankBars items={activity} emptyLabel="No marketplace activity in this range." />
       </AnalyticsPanel>
 
+      <h2 className="mb-3 text-sm font-semibold text-text-primary">Current marketplace</h2>
+      <p className="mb-3 text-xs text-text-tertiary">Current counts, not historical closing balances or totals for the selected period.</p>
       <div className="mb-8 grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
         <MetricSparkCard label="Registered users" value={totalUsers.toLocaleString("en-GB")} />
         <MetricSparkCard label="Live listings" value={totalListingsLive.toLocaleString("en-GB")} />
@@ -384,7 +387,7 @@ export default async function AdminAnalyticsPage(props: {
 
       <section aria-labelledby="top-views-heading">
         <h2 id="top-views-heading" className="mb-3 text-sm font-semibold text-text-primary">
-          Top listings by views
+          Top live listings by lifetime views · Current
         </h2>
         <ListingRankTable
           label="Views"
@@ -401,7 +404,7 @@ export default async function AdminAnalyticsPage(props: {
 
       <section className="mt-8" aria-labelledby="top-favourites-heading">
         <h2 id="top-favourites-heading" className="mb-3 text-sm font-semibold text-text-primary">
-          Top listings by favourites
+          Top listings by favourites · Current
         </h2>
         <ListingRankTable
           label="Favourites"

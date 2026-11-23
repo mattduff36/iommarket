@@ -133,6 +133,10 @@ model UserNotificationSettings {
 }
 
 model DealerProfile {
+  openingHoursEnabled Boolean @default(false)
+  openingHours Json?
+  openingHoursSourceUrl String?
+  openingHoursCheckedAt DateTime?
   showStockSourceLinks Boolean @default(true)
   id             String     @id @default(cuid())
   userId         String     @unique

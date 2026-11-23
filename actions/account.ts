@@ -4,6 +4,7 @@ import { journeyUnknownResult } from "@/lib/forms/journey-public-error";
 
 import { revalidatePath } from "next/cache";
 import { db } from "@/lib/db";
+import { parseOpeningHours } from "@/lib/dealers/opening-hours";
 import { requireAcceptedAuth } from "@/lib/policy/gate";
 import { hasDealerDashboardAccess } from "@/lib/dealers/access";
 import { hasOperationalDealerAccess } from "@/lib/dealers/entitlement";
@@ -153,6 +154,12 @@ export async function updateMyDealerProfile(input: UpdateDealerSelfProfileInput)
         where: { id: profile.id },
         data: {
           name: data.name,
+          ...(data.openingHoursEnabled !== undefined ? { openingHoursEnabled: data.openingHoursEnabled } : {}),
+          ...(data.openingHours !== undefined ? {
+            openingHours: data.openingHours,
+            ...(JSON.stringify(data.openingHours) !== JSON.stringify(parseOpeningHours(user.dealerProfile.openingHours))
+              ? { openingHoursSourceUrl: null, openingHoursCheckedAt: null } : {}),
+          } : {}),
           ...(user.dealerProfile.tier === "PRO" && data.showStockSourceLinks !== undefined
             ? { showStockSourceLinks: data.showStockSourceLinks } : {}),
           slug: data.slug,

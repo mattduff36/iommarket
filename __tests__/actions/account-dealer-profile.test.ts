@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { emptyOpeningHours } from "@/lib/dealers/opening-hours";
 
 const {
   requireAcceptedAuthMock,
@@ -111,6 +112,19 @@ describe("updateMyDealerProfile T10", () => {
       error: "Active dealer access is required to update a dealer profile",
     });
     expect(mockTx.dealerProfile.update).not.toHaveBeenCalled();
+  });
+
+  it.each(["STARTER", "STANDARD", "PRO"])("lets %s owners save hours and removes outdated Google provenance", async tier => {
+    requireAcceptedAuthMock.mockResolvedValue({ id: "owner", role: "DEALER", dealerProfile: { id: "dealer-admin", slug: "admin-dealer", tier, openingHours: null } });
+    hasOperationalDealerAccessMock.mockResolvedValue(true);
+    const hours = emptyOpeningHours();
+    hours.days[0] = { status: "open", periods: [{ opens: "09:00", closes: "17:00" }] };
+    const { updateMyDealerProfile } = await import("@/actions/account");
+    await updateMyDealerProfile({ ...validInput, slug: "admin-dealer", openingHoursEnabled: true, openingHours: hours });
+    expect(mockTx.dealerProfile.update).toHaveBeenCalledWith(expect.objectContaining({
+      where: { id: "dealer-admin" },
+      data: expect.objectContaining({ openingHoursEnabled: true, openingHours: hours, openingHoursSourceUrl: null, openingHoursCheckedAt: null }),
+    }));
   });
 
   it("does not consume quota for the generated placeholder address", async () => {

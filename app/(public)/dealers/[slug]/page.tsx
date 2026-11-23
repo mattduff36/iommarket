@@ -449,6 +449,7 @@ export default async function DealerProfilePage({ params, searchParams }: Props)
         </Card>
       </div>
 
+      <DealerOpeningHours enabled={dealer.openingHoursEnabled} hours={dealer.openingHours} />
       {isProfileOwner ? (
         <Link
           href="/dealer/profile"
@@ -577,3 +578,4 @@ export default async function DealerProfilePage({ params, searchParams }: Props)
     </div>
   );
 }
+import { DealerOpeningHours } from "@/components/dealers/opening-hours";
