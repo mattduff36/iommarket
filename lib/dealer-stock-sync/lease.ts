@@ -66,3 +66,8 @@ export function chooseLeasableJob<T extends LeasableJob>(jobs: T[], now: Date) {
 export const SCOPED_LEASE_JOB_SQL = LEASE_JOB_SQL.replace(
   '  AND NOT EXISTS (', '  AND candidate."id" = ANY($3::text[])\n  AND NOT EXISTS (',
 );
+
+/** Scope the claim itself so concurrent changes cannot transfer another administrator's job. */
+export const ADMIN_SCOPED_LEASE_JOB_SQL = SCOPED_LEASE_JOB_SQL.replace(
+  '  AND NOT EXISTS (', '  AND candidate."createdById" = $4\n  AND NOT EXISTS (',
+);

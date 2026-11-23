@@ -8,7 +8,7 @@ import { scrapeFailureReason, type SourceCompleteness } from "../../lib/dealer-s
 import { dealerSyncBlockReason } from "../../lib/dealer-stock-sync/eligibility";
 import { fingerprintSnapshot, type FingerprintSnapshot } from "../../lib/dealer-stock-sync/fingerprint";
 import { loadStockSyncSnapshot } from "../../lib/dealer-stock-sync/snapshot";
-import { LEASE_JOB_SQL, SCOPED_LEASE_JOB_SQL } from "../../lib/dealer-stock-sync/lease";
+import { ADMIN_SCOPED_LEASE_JOB_SQL, LEASE_JOB_SQL, SCOPED_LEASE_JOB_SQL } from "../../lib/dealer-stock-sync/lease";
 import { buildStockSyncPlan } from "../../lib/dealer-stock-sync/plan";
 import { persistCompleteScrape, persistFailedScrape } from "../../lib/dealer-stock-sync/persist-report";
 import { getDealerStockRegistryOption } from "../../lib/dealer-stock-sync/registry-catalog";
@@ -291,11 +291,14 @@ export async function leaseOneJob(
   now = new Date(),
   guard: DealerStockSyncGuard = assertWorkerEnabled,
   jobIds?: string[],
+  adminId?: string,
 ) {
   guard();
+  if (adminId !== undefined && (!adminId || !jobIds)) throw new Error("Administrator-scoped leases require job IDs.");
   if (jobIds && (jobIds.length === 0 || jobIds.length > 100 || jobIds.some(id => !/^[a-z0-9]{8,40}$/.test(id)))) throw new Error("Invalid job scope.");
+  const sql = adminId ? ADMIN_SCOPED_LEASE_JOB_SQL : jobIds ? SCOPED_LEASE_JOB_SQL : LEASE_JOB_SQL;
   const rows = await db.$queryRawUnsafe<Array<{ id: string }>>(
-    jobIds ? SCOPED_LEASE_JOB_SQL : LEASE_JOB_SQL, owner, new Date(now.getTime() + LEASE_MS), ...(jobIds ? [jobIds] : []),
+    sql, owner, new Date(now.getTime() + LEASE_MS), ...(jobIds ? [jobIds] : []), ...(adminId ? [adminId] : []),
   );
   return rows[0] ? { id: rows[0].id, owner } : null;
 }

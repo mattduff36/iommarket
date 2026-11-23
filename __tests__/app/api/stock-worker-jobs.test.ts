@@ -20,7 +20,7 @@ function install(overrides: Partial<DesktopJobDependencies> = {}) {
     randomBytes,
     leaseOneJob: vi.fn(async () => null),
     runLeasedJob: vi.fn(async () => undefined),
-    jobs: { findById: vi.fn(async () => null), updateMany: vi.fn(async () => ({ count: 0 })) },
+    jobs: { ownedStatuses: vi.fn(async () => []), findById: vi.fn(async () => null), updateMany: vi.fn(async () => ({ count: 0 })) },
     bindings: { findById: vi.fn(async () => null) },
     reports: { findById: vi.fn(async () => null) },
     readiness: vi.fn(async () => true),

@@ -68,6 +68,9 @@ describe("staging administrator access", () => {
     expect(isStagingMachineRequest("/api/stock-worker/control", "POST", false)).toBe(true);
     expect(isStagingMachineRequest("/api/stock-worker/control", "GET", false)).toBe(false);
     expect(isStagingMachineRequest("/api/stock-worker/control", "POST", true)).toBe(false);
+    expect(isStagingMachineRequest("/api/stock-worker/oracle-pairing", "POST", false)).toBe(true);
+    expect(isStagingMachineRequest("/api/stock-worker/oracle-pairing", "GET", false)).toBe(false);
+    expect(isStagingMachineRequest("/api/stock-worker/oracle-pairing", "POST", true)).toBe(false);
     expect(isStagingMachineRequest("/api/cron/preview-mirror", "POST", false)).toBe(true);
     expect(isStagingMachineRequest("/api/cron/preview-mirror", "GET", false)).toBe(false);
     expect(isStagingMachineRequest("/api/cron/preview-mirror", "POST", true)).toBe(false);

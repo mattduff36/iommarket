@@ -43,6 +43,18 @@ describe("stock executor guard seam", () => {
     expect(process.env.DEALER_STOCK_SYNC_WORKER).toBe(before);
   });
 
+  it("includes both the job list and administrator in the atomic Oracle lease", async () => {
+    const jobIds = ["cjob000000000000000000001"];
+    const guard = vi.fn();
+    await expect(leaseOneJob("owner", new Date(0), guard, undefined, "admin")).rejects.toThrow("require job IDs");
+    expect(mocks.query).not.toHaveBeenCalled();
+    await leaseOneJob("owner", new Date(0), guard, jobIds, "admin");
+    const [sql, ...params] = mocks.query.mock.calls[0];
+    expect(sql).toContain('candidate."id" = ANY($3::text[])');
+    expect(sql).toContain('candidate."createdById" = $4');
+    expect(params).toEqual(["owner", new Date(15 * 60 * 1000), jobIds, "admin"]);
+  });
+
   it("does not execute an expired or foreign-owned leased job", async () => {
     const scrape = vi.fn();
     const guard = vi.fn();

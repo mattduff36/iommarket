@@ -10,9 +10,11 @@ export type StockAppTask = () => Promise<string[]>;
 export type StockAppRun = (task: StockAppTask) => Promise<void>;
 
 /** Confirmation happens before the action queues anything. A task is never replayed. */
-export function useStockAppLifecycle(controls: StockWorkerControl, connectedLaunchId?: string | null) {
+export function useStockAppLifecycle(controls: StockWorkerControl, connectedLaunchId?: string | null, allowWindowsLaunch = true) {
   const current = useRef(controls);
   current.current = controls;
+  const windowsAllowed = useRef(allowWindowsLaunch);
+  windowsAllowed.current = allowWindowsLaunch;
   const locked = useRef(false);
   const mounted = useRef(true);
   const [pending, setPending] = useState(false);
@@ -50,10 +52,11 @@ export function useStockAppLifecycle(controls: StockWorkerControl, connectedLaun
   }, [launchId, connectedLaunchId]);
 
   async function launch(mode: "open" | "task", jobIds: string[] = []) {
+    if (!windowsAllowed.current) throw new Error("Windows fallback unavailable");
     setLaunchFailed(false);
     const result = await launchStockApp({ mode, jobIds });
     if (!result.ok) throw new Error(result.error);
-    if (!mounted.current) return;
+    if (!mounted.current || !windowsAllowed.current) return;
     setLaunchId(result.launchId);
     setLaunchUrl(result.url);
     setMessage("Opening Stock Update. Allow the browser prompt if it appears.");
@@ -82,6 +85,7 @@ export function useStockAppLifecycle(controls: StockWorkerControl, connectedLaun
   }
   const requestRun: StockAppRun = async task => {
     if (locked.current || current.current.pending || current.current.stopping) return;
+    if (!current.current.online && !windowsAllowed.current) return;
     if (current.current.scopedVm && !current.current.online) {
       setMessage("The selected Oracle VM is offline. Reconnect it or select another computer.");
       return;
@@ -105,11 +109,12 @@ export function useStockAppLifecycle(controls: StockWorkerControl, connectedLaun
     if (!request) return;
     confirmationRef.current = null;
     setConfirmation(null);
-    try { await execute(request.task, !current.current.online); }
-    finally { request.resolve(); }
+    try {
+      if (windowsAllowed.current) await execute(request.task, !current.current.online);
+    } finally { locked.current = false; request.resolve(); }
   }
   async function open() {
-    if (locked.current) return;
+    if (locked.current || !windowsAllowed.current) return;
     locked.current = true;
     setPending(true);
     try { await launch("open"); }
@@ -121,7 +126,10 @@ export function useStockAppLifecycle(controls: StockWorkerControl, connectedLaun
     }
     finally { locked.current = false; if (mounted.current) setPending(false); }
   }
-  const dialog = <Dialog open={confirmation !== null} onOpenChange={value => { if (!value) cancel(); }}>
+  useEffect(() => {
+    if (!allowWindowsLaunch && confirmationRef.current) cancel();
+  }, [allowWindowsLaunch]);
+  const dialog = <Dialog open={confirmation !== null && allowWindowsLaunch} onOpenChange={value => { if (!value) cancel(); }}>
     <DialogContent>
       <DialogTitle>Start Stock Update for this task?</DialogTitle>
       <DialogDescription className="mt-3">This task needs the installed Stock Update app. It will connect to this site with your admin sign-in, run minimised, and close after these tasks finish. An app you already opened will stay open.</DialogDescription>

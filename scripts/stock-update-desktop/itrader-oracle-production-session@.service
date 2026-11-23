@@ -1,0 +1,14 @@
+[Unit]
+Description=Reload the iTrader Production controller after pairing (%i)
+ConditionPathExists=/var/lib/itrader-stock-production-%i/session.json
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/systemctl enable itrader-stock-production@%i.service
+ExecStart=-/usr/bin/systemctl reset-failed itrader-stock-production@%i.service
+ExecStart=/usr/bin/systemctl --no-block restart itrader-stock-production@%i.service
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+RestrictAddressFamilies=AF_UNIX
