@@ -2,7 +2,7 @@ import { soldListingForNewVehicle } from "./plan";
 import { createHash } from "node:crypto";
 import { calculateExpiryDate } from "../listing-status";
 import { dealerSyncBlockReason } from "./eligibility";
-import { fingerprintSnapshot, type FingerprintSnapshot } from "./fingerprint";
+import { matchesStockFingerprint, type FingerprintSnapshot } from "./fingerprint";
 import { isOwnedListingImage } from "./images";
 import type { OwnedListingImage, CreatePlanAction, PlanAction, UpdatePlanAction } from "./types";
 import { normalizeVehicleAttributeRecord } from "../vehicle-catalogue/vehicle-normalization";
@@ -216,8 +216,7 @@ export async function applyFrozenPlan(input: {
     deletedAt: input.snapshot.dealer.deletedAt,
   });
   if (block) throw new StalePlanError("The dealer account can no longer be synced.");
-  const current = fingerprintSnapshot(input.snapshot);
-  if (current !== input.storedFingerprint) throw new StalePlanError();
+  if (!matchesStockFingerprint(input.snapshot, input.storedFingerprint)) throw new StalePlanError();
   const creates = input.snapshot.actions.filter((action) => action.kind === "create");
   if (creates.some(action => soldListingForNewVehicle(action, input.snapshot.listings))) {
     throw new StalePlanError("Sold stock is protected. Generate a fresh review plan.");

@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { applyFrozenPlan, type ApplyWriter } from "@/lib/dealer-stock-sync/apply";
-import { fingerprintSnapshot, type FingerprintSnapshot } from "@/lib/dealer-stock-sync/fingerprint";
+import { fingerprintSnapshot, matchesStockFingerprint, type FingerprintSnapshot } from "@/lib/dealer-stock-sync/fingerprint";
 import type { PlanAction } from "@/lib/dealer-stock-sync/types";
 
 function snapshot(actions: PlanAction[], listingPrice = 1_000_000): FingerprintSnapshot {
@@ -84,6 +84,27 @@ const update: PlanAction = {
 };
 
 describe("applyFrozenPlan", () => {
+  it("recognises round-tripped and legacy reviews while rejecting changed prices and conditions", () => {
+    const scanner = snapshot([{ ...update, review: {
+      displayTitle: "Test vehicle", condition: undefined, flags: [], pricePence: 900_000, mileage: null,
+      year: null, categorySlug: null, sourceUrl: null, safePhotoUrls: [], availability: "available",
+      provenance: ["stock"], sourceHash: "test", capturedAt: "2026-11-23T01:00:00.000Z",
+      coverageWarning: null, capacityWarning: null,
+    } }]);
+    const stored: FingerprintSnapshot = JSON.parse(JSON.stringify(scanner));
+    const original = fingerprintSnapshot(scanner);
+    expect(fingerprintSnapshot(stored)).toBe(original);
+    const legacy = JSON.parse(JSON.stringify(scanner));
+    legacy.actions[0].review.condition = null; // Old serializer emitted explicit undefined as null.
+    const previous = fingerprintSnapshot(legacy);
+    expect(previous).not.toBe(original);
+    expect(matchesStockFingerprint(stored, previous)).toBe(true);
+    stored.listings[0]!.price += 1;
+    expect(matchesStockFingerprint(stored, previous)).toBe(false);
+    stored.listings[0]!.price -= 1;
+    stored.actions[0]!.review!.condition = "NEW";
+    expect(matchesStockFingerprint(stored, previous)).toBe(false);
+  });
   it("normalizes new stock at the final write boundary without modifying approved evidence", async () => {
     const action: PlanAction = {
       kind: "create", sourceIdentityKey: "sourceVehicleId:2", listingId: null,

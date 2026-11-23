@@ -1,5 +1,5 @@
 import { Prisma } from "@prisma/client";
-import { fingerprintSnapshot } from "./fingerprint";
+import { fingerprintSnapshot, matchesStockFingerprint } from "./fingerprint";
 import { loadStockSyncSnapshot } from "./snapshot";
 import { planAfterCorrection, readPlanActions } from "./review-edit";
 import { isSelectableStockAction } from "./selection";
@@ -29,7 +29,7 @@ export async function prepareLinkedReviewResolution(tx: Prisma.TransactionClient
   }
   if (!before || before.binding.id !== report.bindingId || !before.listings.some(listing => listing.id === listingId) ||
       !before.identities.some(identity => identity.sourceIdentityKey === target.sourceIdentityKey && identity.listingId === listingId)) throw new Error(STALE);
-  const wasCurrent = fingerprintSnapshot(before) === report.fingerprint;
+  const wasCurrent = matchesStockFingerprint(before, report.fingerprint);
   const remaining = actions.filter(item => item !== action);
 
   return async () => {

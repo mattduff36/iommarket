@@ -2,7 +2,7 @@ import "server-only";
 import { Prisma } from "@prisma/client";
 import { db } from "@/lib/db";
 import { dealerSyncBlockReason } from "./eligibility";
-import { fingerprintSnapshot } from "./fingerprint";
+import { matchesStockFingerprint } from "./fingerprint";
 import { loadStockSyncSnapshot } from "./snapshot";
 import { readPlanActions } from "./review-edit";
 import { getDealerStockRegistryOption } from "./registry-catalog";
@@ -70,7 +70,7 @@ async function recoverUnderLock(tx: Prisma.TransactionClient, input: StockRecove
   if (!actions?.length) return { error: FRESH };
   const snapshot = await loadStockSyncSnapshot(report.dealerId, actions, tx);
   if (!snapshot || snapshot.binding.id !== report.bindingId || snapshot.dealer.id !== report.dealerId ||
-    fingerprintSnapshot(snapshot) !== report.fingerprint) return { error: FRESH };
+    !matchesStockFingerprint(snapshot, report.fingerprint)) return { error: FRESH };
   const job = await tx.dealerStockSyncJob.create({ data: {
     kind: "APPLY", status: "QUEUED", bindingId: report.bindingId, dealerId: report.dealerId, reportId: report.id,
     idempotencyKey: `apply-retry:${previous.id}`,

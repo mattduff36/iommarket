@@ -2,9 +2,9 @@ import { beforeEach, expect, it, vi } from "vitest";
 import type { Prisma } from "@prisma/client";
 import { prepareLinkedReviewResolution } from "@/lib/dealer-stock-sync/resolve-listing-edit";
 import { loadStockSyncSnapshot } from "@/lib/dealer-stock-sync/snapshot";
-import { fingerprintSnapshot } from "@/lib/dealer-stock-sync/fingerprint";
+import { fingerprintSnapshot, matchesStockFingerprint } from "@/lib/dealer-stock-sync/fingerprint";
 vi.mock("@/lib/dealer-stock-sync/snapshot", () => ({ loadStockSyncSnapshot: vi.fn() }));
-vi.mock("@/lib/dealer-stock-sync/fingerprint", () => ({ fingerprintSnapshot: vi.fn() }));
+vi.mock("@/lib/dealer-stock-sync/fingerprint", () => ({ fingerprintSnapshot: vi.fn(), matchesStockFingerprint: vi.fn() }));
 const target = { reportId: "report", fingerprint: "original", sourceIdentityKey: "kia" };
 const kia = { kind: "blocked", listingId: "listing", sourceIdentityKey: "kia", reason: "source-conflict" };
 const skoda = { kind: "blocked", listingId: null, sourceIdentityKey: "skoda", reason: "missing-price" };
@@ -14,7 +14,8 @@ const tx = { $queryRaw: vi.fn(), dealerStockSyncReport: { findUnique, updateMany
 beforeEach(() => {
   vi.resetAllMocks(); findUnique.mockResolvedValue(report); updateMany.mockResolvedValue({ count: 1 }); busy.mockResolvedValue(null);
   vi.mocked(loadStockSyncSnapshot).mockResolvedValue({ binding: { id: "binding" }, listings: [{ id: "listing" }], identities: [{ sourceIdentityKey: "kia", listingId: "listing" }] } as never);
-  vi.mocked(fingerprintSnapshot).mockReturnValueOnce("original").mockReturnValue("next");
+  vi.mocked(matchesStockFingerprint).mockReturnValue(true);
+  vi.mocked(fingerprintSnapshot).mockReturnValue("next");
 });
 it("removes only the corrected linked item and rebases a current report after save", async () => {
   const finish = await prepareLinkedReviewResolution(tx, target, "listing", "admin");
@@ -24,7 +25,7 @@ it("removes only the corrected linked item and rebases a current report after sa
   expect(audit).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({ action: "admin-stock-review-resolved" }) }));
 });
 it("clears a previously corrected item without making unrelated stale approvals valid", async () => {
-  vi.mocked(fingerprintSnapshot).mockReset().mockReturnValue("unrelated-change");
+  vi.mocked(matchesStockFingerprint).mockReturnValue(false);
   await (await prepareLinkedReviewResolution(tx, target, "listing", "admin"))();
   expect(updateMany).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({ fingerprint: "original", plan: { actions: [skoda] } }) }));
 });

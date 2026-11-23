@@ -6,7 +6,7 @@ import { requireRole } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { getDealerStockSyncAvailability } from "@/lib/deployment/dealer-stock-sync";
 import { dealerSyncBlockReason } from "@/lib/dealer-stock-sync/eligibility";
-import { fingerprintSnapshot } from "@/lib/dealer-stock-sync/fingerprint";
+import { fingerprintSnapshot, matchesStockFingerprint } from "@/lib/dealer-stock-sync/fingerprint";
 import { soldListingForNewVehicle } from "@/lib/dealer-stock-sync/plan";
 import {
   correctStockReviewActions,
@@ -97,7 +97,7 @@ export async function loadStockReviewVehicle(input: unknown) {
   if (!snapshot?.binding.verifiedAt || snapshot.binding.id !== report.bindingId || blockedAccount(snapshot)) {
     return { error: "This dealer account cannot sync website stock." };
   }
-  if (fingerprintSnapshot(snapshot) !== report.fingerprint) return { error: STALE };
+  if (!matchesStockFingerprint(snapshot, report.fingerprint)) return { error: STALE };
   const categories = await db.category.findMany({
     where: { active: true, slug: { in: VEHICLE_SLUGS } },
     orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
@@ -189,7 +189,7 @@ export async function saveStockReviewVehicle(input: unknown): Promise<
       if (
         !snapshot?.binding.verifiedAt ||
         snapshot.binding.id !== report.bindingId ||
-        fingerprintSnapshot(snapshot) !== report.fingerprint ||
+        !matchesStockFingerprint(snapshot, report.fingerprint) ||
         blockedAccount(snapshot)
       ) {
         return { error: snapshot && blockedAccount(snapshot) ? "This dealer account cannot sync website stock." : STALE };
