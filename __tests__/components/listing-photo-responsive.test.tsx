@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { fireEvent, render, screen, within } from "@testing-library/react";
+import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { ListingImageGallery } from "@/app/(public)/listings/[id]/listing-image-gallery";
@@ -155,24 +155,44 @@ describe("listing photo responsive delivery", () => {
     expect(document.querySelector('link[rel="preload"][as="image"]')).toBeNull();
   });
 
-  it("retries a protected image once, shows an unavailable state, and resets for the next photo", () => {
+  it("shows loading and retries after 3 and 6 seconds before offering a fresh attempt", () => {
     process.env.NEXT_PUBLIC_MEDIA_PROVIDER = "imagekit";
-    const view = (photo: ListingPhotoSource) => (
-      <ListingPhoto photo={photo} frame="card" alt="Car" sizes={LISTING_CARD_SIZES} />
-    );
-    const { rerender } = render(view(landscape));
-    const image = screen.getByRole("img", { name: "Car" });
-    expectProtectedCandidates(image);
+    vi.useFakeTimers();
+    try {
+      const view = (photo: ListingPhotoSource) => (
+        <ListingPhoto photo={photo} frame="card" alt="Car" sizes={LISTING_CARD_SIZES} allowManualRetry />
+      );
+      const { container, rerender } = render(view(landscape));
+      const image = screen.getByRole("img", { name: "Car" });
+      expectProtectedCandidates(image);
 
-    fireEvent.error(image);
-    expect(image.getAttribute("src")).toContain("retry=1");
-    expect(image.hasAttribute("srcset")).toBe(false);
-    fireEvent.error(image);
-    expect(screen.queryByRole("img", { name: "Car" })).toBeNull();
-    expect(screen.getByText("Photo temporarily unavailable")).toBeTruthy();
+      fireEvent.error(image);
+      expect(container.querySelector("[data-photo-loading]")).toBeTruthy();
+      act(() => vi.advanceTimersByTime(2999));
+      expect(screen.queryByRole("img", { name: "Car" })).toBeNull();
+      act(() => vi.advanceTimersByTime(1));
+      const firstRetry = screen.getByRole("img", { name: "Car" });
+      expect(firstRetry.getAttribute("src")).toContain("retry=1");
+      expect(firstRetry.hasAttribute("srcset")).toBe(false);
 
-    rerender(view(portrait));
-    expectProtectedCandidates(screen.getByRole("img", { name: "Car" }));
+      fireEvent.error(firstRetry);
+      act(() => vi.advanceTimersByTime(5999));
+      expect(screen.queryByRole("button", { name: "Try again" })).toBeNull();
+      expect(screen.queryByRole("img", { name: "Car" })).toBeNull();
+      act(() => vi.advanceTimersByTime(1));
+      const secondRetry = screen.getByRole("img", { name: "Car" });
+      expect(secondRetry.getAttribute("src")).toContain("retry=2");
+      fireEvent.error(secondRetry);
+      expect(screen.queryByRole("img", { name: "Car" })).toBeNull();
+      expect(screen.getByText("Photo temporarily unavailable")).toBeTruthy();
+      fireEvent.click(screen.getByRole("button", { name: "Try again" }));
+      expectProtectedCandidates(screen.getByRole("img", { name: "Car" }));
+
+      rerender(view(portrait));
+      expectProtectedCandidates(screen.getByRole("img", { name: "Car" }));
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("requests gallery pixel widths instead of the 16:10 aspect ratio", () => {
@@ -196,6 +216,28 @@ describe("listing photo responsive delivery", () => {
     expect(browserChoice(widths, slotCssPixels(LISTING_GALLERY_SIZES, 1440), 1)).toBe(800);
     expect(browserChoice(widths, slotCssPixels(LISTING_GALLERY_SIZES, 1440), 2)).toBe(1600);
     expect(browserChoice(widths, slotCssPixels(LISTING_LIGHTBOX_SIZES, 1920), 2)).toBe(2400);
+  });
+
+  it("stops retrying when a legacy image loads successfully", async () => {
+    process.env.NEXT_PUBLIC_MEDIA_PROVIDER = "cloudinary";
+    vi.useFakeTimers();
+    try {
+      const photo = { ...landscape, provider: "EXTERNAL" as const };
+      const { container } = render(<ListingPhoto photo={photo} frame="card" alt="Car" sizes={LISTING_CARD_SIZES} />);
+      const original = screen.getByRole("img", { name: "Car" });
+      fireEvent.error(original);
+      expect(container.querySelector("[data-photo-loading]")).toBeTruthy();
+      act(() => vi.advanceTimersByTime(3000));
+      const replacement = screen.getByRole("img", { name: "Car" });
+      expect(replacement).not.toBe(original);
+      Object.defineProperty(replacement, "naturalWidth", { value: 800 });
+      await act(async () => fireEvent.load(replacement));
+      expect(container.querySelector("[data-photo-loading]")).toBeNull();
+      act(() => vi.advanceTimersByTime(6000));
+      expect(screen.getByRole("img", { name: "Car" })).toBe(replacement);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("keeps the blurred pad behind a sharp portrait foreground", () => {

@@ -42,9 +42,9 @@ function GalleryAttempt({ images, title, isSold, onRetry }: ListingImageGalleryP
   const [prefersReducedMotion, setPrefersReducedMotion] = React.useState(false);
   const [thumbnails, setThumbnails] = React.useState<Record<number, string>>({});
   const [failedThumbnails, setFailedThumbnails] = React.useState<Record<number, boolean>>({});
-  const [failedPhotos, setFailedPhotos] = React.useState<Record<number, boolean>>({});
+  const [thumbnailAttempts, setThumbnailAttempts] = React.useState<Record<number, number>>({});
+  const [photoResults, setPhotoResults] = React.useState<Record<number, "ready" | "failed">>({});
   const canNavigate = images.length > 1;
-  const unavailable = images.length > 0 && images.every((_, index) => failedPhotos[index] && !thumbnails[index]);
 
   React.useEffect(() => {
     if (typeof window.matchMedia !== "function") return;
@@ -61,22 +61,24 @@ function GalleryAttempt({ images, title, isSold, onRetry }: ListingImageGalleryP
     }
   }, [activeIndex, images.length]);
 
-  const available = React.useCallback((index: number) => !failedPhotos[index] || Boolean(thumbnails[index]), [failedPhotos, thumbnails]);
+  const working = React.useCallback((index: number) => photoResults[index] === "ready" || Boolean(thumbnails[index]), [photoResults, thumbnails]);
+  const available = React.useCallback((index: number) => photoResults[index] !== "failed" || working(index), [photoResults, working]);
+  const needsRetry = !available(activeIndex) && !images.some((_, index) => working(index));
   const showImage = React.useCallback((index: number) => {
     if (index >= 0 && index < images.length && available(index)) setActiveIndex(index);
   }, [available, images.length]);
 
-  const nextAvailable = React.useCallback((index: number, step: number) => {
+  const nextAvailable = React.useCallback((index: number, step: number, canShow = available) => {
     for (let offset = 1; offset < images.length; offset++) {
       const candidate = (index + step * offset + images.length) % images.length;
-      if (available(candidate)) return candidate;
+      if (canShow(candidate)) return candidate;
     }
     return index;
   }, [available, images.length]);
 
   React.useEffect(() => {
-    if (!available(activeIndex)) setActiveIndex(nextAvailable(activeIndex, 1));
-  }, [activeIndex, available, nextAvailable]);
+    if (!available(activeIndex)) setActiveIndex(nextAvailable(activeIndex, 1, working));
+  }, [activeIndex, available, nextAvailable, working]);
 
   const showPrevious = () => setActiveIndex(index => nextAvailable(index, -1));
   const showNext = () => setActiveIndex(index => nextAvailable(index, 1));
@@ -88,13 +90,21 @@ function GalleryAttempt({ images, title, isSold, onRetry }: ListingImageGalleryP
     setThumbnails(current => current[index] ? { ...current, [index]: "" } : current);
     setFailedThumbnails(current => current[index] ? current : { ...current, [index]: true });
   };
-  const setPhotoFailure = (index: number, failed: boolean) => {
-    setFailedPhotos(current => Boolean(current[index]) === failed ? current : { ...current, [index]: failed });
+  const openThumbnail = (index: number) => {
+    if (failedThumbnails[index]) {
+      setFailedThumbnails(current => ({ ...current, [index]: false }));
+      setThumbnailAttempts(current => ({ ...current, [index]: (current[index] ?? 0) + 1 }));
+      return;
+    }
+    showImage(index);
+  };
+  const setPhotoResult = (index: number, result: "ready" | "failed") => {
+    setPhotoResults(current => current[index] === result ? current : { ...current, [index]: result });
   };
   const recovery = {
     thumbnails, onThumbnailUnavailable,
-    onPhotoLoad: (index: number) => setPhotoFailure(index, false),
-    onPhotoUnavailable: (index: number) => setPhotoFailure(index, true),
+    onPhotoLoad: (index: number) => setPhotoResult(index, "ready"),
+    onPhotoUnavailable: (index: number) => setPhotoResult(index, "failed"),
   };
 
   function handleLightboxKeyDown(event: React.KeyboardEvent<HTMLDivElement>) {
@@ -116,15 +126,6 @@ function GalleryAttempt({ images, title, isSold, onRetry }: ListingImageGalleryP
     );
   }
 
-  if (unavailable) {
-    return (
-      <div className="flex min-h-40 flex-col items-center justify-center gap-3 rounded-lg border border-border p-6">
-        <p role="status">Photos temporarily unavailable</p>
-        <Button type="button" onClick={onRetry}>Try again</Button>
-      </div>
-    );
-  }
-
   return (
     <>
       <div className="grid gap-3">
@@ -135,11 +136,12 @@ function GalleryAttempt({ images, title, isSold, onRetry }: ListingImageGalleryP
             title={title}
             activeIndex={activeIndex}
             onSelect={showImage}
-            onOpen={() => setIsLightboxOpen(true)}
+            onOpen={needsRetry ? undefined : () => setIsLightboxOpen(true)}
             isSold={isSold}
             prefersReducedMotion={prefersReducedMotion}
             testId="listing-gallery-stage"
           />
+          {needsRetry && <GalleryPhotoUnavailable onRetry={onRetry} />}
 
           {canNavigate && (
             <>
@@ -189,19 +191,19 @@ function GalleryAttempt({ images, title, isSold, onRetry }: ListingImageGalleryP
                 <button
                   key={image.id ?? image.publicId ?? index}
                   type="button"
-                  onClick={() => showImage(index)}
+                  onClick={() => openThumbnail(index)}
                   className={cn(
                     "relative aspect-[16/10] w-36 shrink-0 overflow-hidden rounded-lg bg-graphite-800 sm:w-auto",
                     "border transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-neon-blue-500 focus-visible:ring-offset-2 focus-visible:ring-offset-canvas",
                     isActive
                       ? "border-neon-blue-500 shadow-[0_0_0_1px_rgba(66,153,225,0.8)]"
                       : "border-white/10 hover:border-white/35",
-                    failedThumbnails[index] && "invisible",
                   )}
-                  aria-label={`Show image ${index + 1} of ${images.length}`}
+                  aria-label={failedThumbnails[index] ? `Retry thumbnail ${index + 1}` : `Show image ${index + 1} of ${images.length}`}
                   aria-current={isActive ? "true" : undefined}
                 >
                   <ListingPhoto
+                    key={thumbnailAttempts[index] ?? 0}
                     photo={image}
                     frame="thumb"
                     alt={`${title} image ${index + 1}`}
@@ -210,6 +212,7 @@ function GalleryAttempt({ images, title, isSold, onRetry }: ListingImageGalleryP
                     onPhotoLoad={src => onThumbnailLoad(index, src)}
                     onPhotoUnavailable={() => onThumbnailUnavailable(index)}
                   />
+                  {failedThumbnails[index] && <ThumbnailRetryLabel />}
                   <span className="absolute bottom-1.5 right-1.5 rounded bg-black/65 px-1.5 py-0.5 text-[10px] font-semibold text-white">
                     {index + 1}
                   </span>
@@ -243,6 +246,7 @@ function GalleryAttempt({ images, title, isSold, onRetry }: ListingImageGalleryP
                 prefersReducedMotion={prefersReducedMotion}
                 testId="listing-lightbox-stage"
               />
+              {needsRetry && <GalleryPhotoUnavailable onRetry={onRetry} />}
 
               {canNavigate && (
                 <>
@@ -292,17 +296,17 @@ function GalleryAttempt({ images, title, isSold, onRetry }: ListingImageGalleryP
                       <button
                         key={image.id ?? image.publicId ?? index}
                         type="button"
-                        onClick={() => showImage(index)}
+                        onClick={() => openThumbnail(index)}
                         className={cn(
                           "relative h-16 w-28 shrink-0 overflow-hidden rounded-md border bg-graphite-900",
                           "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-neon-blue-500",
                           isActive ? "border-neon-blue-500" : "border-white/15",
-                          failedThumbnails[index] && "invisible",
                         )}
-                        aria-label={`Show image ${index + 1}`}
+                        aria-label={failedThumbnails[index] ? `Retry thumbnail ${index + 1}` : `Show image ${index + 1}`}
                         aria-current={isActive ? "true" : undefined}
                       >
                         <ListingPhoto
+                          key={thumbnailAttempts[index] ?? 0}
                           photo={image}
                           frame="thumb"
                           alt={`${title} thumbnail ${index + 1}`}
@@ -311,6 +315,7 @@ function GalleryAttempt({ images, title, isSold, onRetry }: ListingImageGalleryP
                           onPhotoLoad={src => onThumbnailLoad(index, src)}
                           onPhotoUnavailable={() => onThumbnailUnavailable(index)}
                         />
+                        {failedThumbnails[index] && <ThumbnailRetryLabel />}
                       </button>
                     );
                   })}
@@ -322,6 +327,19 @@ function GalleryAttempt({ images, title, isSold, onRetry }: ListingImageGalleryP
       </Dialog>
     </>
   );
+}
+
+function GalleryPhotoUnavailable({ onRetry }: { onRetry: () => void }) {
+  return (
+    <div className="absolute inset-0 grid content-center justify-items-center gap-3 rounded-lg bg-graphite-800 p-6">
+      <p role="status">Photos temporarily unavailable</p>
+      <Button type="button" onClick={onRetry}>Try again</Button>
+    </div>
+  );
+}
+
+function ThumbnailRetryLabel() {
+  return <span className="absolute inset-0 grid place-content-center text-xs text-text-secondary">Try again</span>;
 }
 
 interface SwipeablePhotoStageProps {
@@ -423,7 +441,7 @@ function SwipeablePhotoStage({
               <button
                 type="button"
                 onClick={onOpen}
-                tabIndex={index === activeIndex ? 0 : -1}
+                tabIndex={index === activeIndex && onOpen ? 0 : -1}
                 className="group relative block h-full w-full text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-neon-blue-500"
                 aria-label={`Open image gallery for ${title}`}
               >

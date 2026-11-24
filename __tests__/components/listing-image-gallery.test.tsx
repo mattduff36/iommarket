@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import * as React from "react";
 import "@testing-library/jest-dom/vitest";
-import { fireEvent, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { ListingImageGallery } from "@/app/(public)/listings/[id]/listing-image-gallery";
 
@@ -90,49 +90,62 @@ const images = [
 ];
 
 describe("ListingImageGallery", () => {
-  it("keeps a decoded thumbnail when the large photo fails twice", () => {
+  function exhaustPhoto(image: () => Element) {
+    fireEvent.error(image());
+    act(() => vi.advanceTimersByTime(3000));
+    fireEvent.error(image());
+    act(() => vi.advanceTimersByTime(6000));
+    fireEvent.error(image());
+  }
+
+  it("keeps a decoded thumbnail during backoff and after the large photo fails", () => {
     vi.stubEnv("NEXT_PUBLIC_MEDIA_PROVIDER", "imagekit");
+    vi.useFakeTimers();
     try {
       render(<ListingImageGallery images={images} title="Test Volvo" isSold={false} />);
       const thumb = screen.getByRole("button", { name: "Show image 1 of 3" }).querySelector("img")!;
       Object.defineProperty(thumb, "naturalWidth", { value: 160 });
       fireEvent.load(thumb);
       const data = screen.getByTestId("listing-gallery-stage");
-      const primary = data.querySelector('img[fetchpriority="high"]')!;
-      fireEvent.error(primary);
-      fireEvent.error(primary);
+      exhaustPhoto(() => data.querySelector('img[fetchpriority="high"]')!);
       expect(data.querySelector('[data-photo-fallback="thumbnail"]')).toHaveAttribute("src", thumb.src);
       expect(screen.getByText("1 / 3")).toBeVisible();
     } finally {
       vi.unstubAllEnvs();
+      vi.useRealTimers();
     }
   });
 
   it("advances to another photo when no thumbnail can replace the main photo", () => {
     vi.stubEnv("NEXT_PUBLIC_MEDIA_PROVIDER", "imagekit");
+    vi.useFakeTimers();
     try {
       render(<ListingImageGallery images={images} title="Test Volvo" isSold={false} />);
-      const primary = screen.getByTestId("listing-gallery-stage").querySelector('img[fetchpriority="high"]')!;
-      fireEvent.error(primary);
-      fireEvent.error(primary);
+      const nextThumbnail = screen.getByRole("button", { name: "Show image 2 of 3" }).querySelector("img")!;
+      Object.defineProperty(nextThumbnail, "naturalWidth", { value: 160 });
+      fireEvent.load(nextThumbnail);
+      exhaustPhoto(() => screen.getByTestId("listing-gallery-stage").querySelector('img[fetchpriority="high"]')!);
       expect(screen.getByText("2 / 3")).toBeVisible();
     } finally {
       vi.unstubAllEnvs();
+      vi.useRealTimers();
     }
   });
 
-  it("offers a fresh attempt when the only photo cannot be loaded", () => {
+  it("offers a fresh attempt after both retries when no gallery photo is ready", () => {
     vi.stubEnv("NEXT_PUBLIC_MEDIA_PROVIDER", "imagekit");
+    vi.useFakeTimers();
     try {
-      render(<ListingImageGallery images={images.slice(0, 1)} title="Test Volvo" isSold={false} />);
-      const primary = screen.getByRole("img", { name: "Test Volvo" });
-      fireEvent.error(primary);
-      fireEvent.error(primary);
+      render(<ListingImageGallery images={images} title="Test Volvo" isSold={false} />);
+      const findPrimary = () => screen.getByTestId("listing-gallery-stage").querySelector('img[fetchpriority="high"]')!;
+      const primary = findPrimary();
+      exhaustPhoto(findPrimary);
       expect(screen.getByRole("status")).toHaveTextContent("Photos temporarily unavailable");
       fireEvent.click(screen.getByRole("button", { name: "Try again" }));
       expect(screen.getByRole("img", { name: "Test Volvo" })).not.toBe(primary);
     } finally {
       vi.unstubAllEnvs();
+      vi.useRealTimers();
     }
   });
 
