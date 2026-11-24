@@ -241,7 +241,7 @@ export function ListingPhoto({
     <div className={cn("relative overflow-hidden bg-graphite-800", frameClassName, className)}>
       {fitMode === "pad" ? (
         <>
-          {renderPhoto(
+          {frame !== "thumb" && renderPhoto(
             "blur",
             "320px",
             "",

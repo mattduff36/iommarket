@@ -2,9 +2,9 @@
 import { createHash } from "node:crypto";
 import { z } from "zod";
 import { listingPhotoDeliveryQuerySchema } from "./listing-photo-query";
+import { MEDIA_DENIAL_SOURCES } from "./denial-sources";
 
-export const MEDIA_DENIAL_SOURCES = ["shared-window", "local-window", "bucket-cap"] as const;
-export type MediaDenialSource = typeof MEDIA_DENIAL_SOURCES[number];
+export { MEDIA_DENIAL_SOURCES, type MediaDenialSource } from "./denial-sources";
 const mediaFactsSchema = z.object({
   route: z.enum(["/api/media/listing-photo", "/api/media/cloudinary-ref"]),
   assetFingerprint: z.string().regex(/^[a-f0-9]{64}$/),

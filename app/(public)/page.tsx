@@ -60,7 +60,7 @@ export default async function HomePage() {
   const sampleVisibility = await getSampleVisibility();
   const liveWhere = await marketplaceListingWhereWithSettings({ viewer: currentUser });
   /* Fetch categories and dealer/search datasets */
-  const [categories, regions, makeDefs, modelDefs, dealerResults, pricing] = await Promise.all([
+  const [categories, regions, vehicleAttributes, dealerResults, pricing] = await Promise.all([
     db.category.findMany({
       where: { active: true, parentId: null },
       orderBy: { sortOrder: "asc" },
@@ -73,12 +73,8 @@ export default async function HomePage() {
       orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
     }),
     db.attributeDefinition.findMany({
-      where: { slug: "make" },
-      select: { id: true },
-    }),
-    db.attributeDefinition.findMany({
-      where: { slug: "model" },
-      select: { id: true },
+      where: { slug: { in: ["make", "model"] } },
+      select: { id: true, slug: true },
     }),
     db.dealerProfile.findMany(
       getMarketplaceDealerSpotlightQuery(liveWhere, currentUser, sampleVisibility),
@@ -87,8 +83,8 @@ export default async function HomePage() {
   ]);
   const dealers = shuffleDealerSpotlights(dealerResults);
 
-  const makeIds = makeDefs.map((d) => d.id);
-  const modelIds = modelDefs.map((d) => d.id);
+  const makeIds = vehicleAttributes.filter((definition) => definition.slug === "make").map((definition) => definition.id);
+  const modelIds = vehicleAttributes.filter((definition) => definition.slug === "model").map((definition) => definition.id);
 
   const [makeRows, modelRows] = await Promise.all([
     makeIds.length > 0

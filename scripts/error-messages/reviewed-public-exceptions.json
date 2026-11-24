@@ -145,7 +145,7 @@
   },
   {
     "file": "app/api/media/listing-photo/route.ts",
-    "snippet": "return NextResponse.json({ error: rateDenial.message }, { status: rateDenial.status, headers: { \"Retry-After\": String(rateDenial.retryAfterSeconds), \"Cache-Control\": \"no-store\" } });",
+    "snippet": "return NextResponse.json({ error: rateDenial.message }, { status: rateDenial.status, headers });",
     "reason": "RateLimitDenial.message is constructed locally from approved call-site copy and a fixed service-unavailable message, never from an exception.",
     "occurrences": 1
   },

@@ -1,4 +1,5 @@
 import { diagnosticTarget } from "./request-diagnostics";
+import { MEDIA_DENIAL_SOURCES, MEDIA_RATE_LIMIT_TIMING, type MediaDenialSource } from "@/lib/media/denial-sources";
 
 const ELEMENT_KINDS = ["img", "script", "link", "video", "audio", "source", "other", "window"] as const;
 const LINK_RELS = ["stylesheet", "preload", "modulepreload", "prefetch", "icon", "manifest"] as const;
@@ -15,6 +16,8 @@ export interface ResourceDiagnostic {
   linkAs?: typeof LINK_AS[number];
   mediaErrorCode?: number;
   responseStatus?: number;
+  mediaDenialSource?: MediaDenialSource;
+  decorativePhoto?: true;
   durationMs?: number;
   transferSize?: number;
   decodedBodySize?: number;
@@ -62,6 +65,13 @@ export function safeResourceDiagnostic(value: unknown): ResourceDiagnostic | und
   const status = read(value, "responseStatus");
   // 0 is an opaque/unavailable status, never evidence of an HTTP failure.
   if (status === 0 || boundedNumber(status, 599, true) && status >= 100) result.responseStatus = status;
+  if (result.target === "/api/media/listing-photo") {
+    if (elementKind === "img" && read(value, "decorativePhoto") === true) result.decorativePhoto = true;
+    if (status === 429) {
+      const source = MEDIA_DENIAL_SOURCES.find(item => item === read(value, "mediaDenialSource"));
+      if (source) result.mediaDenialSource = source;
+    }
+  }
   const duration = read(value, "durationMs");
   if (boundedNumber(duration, MAX_DURATION_MS)) result.durationMs = duration;
   for (const key of ["transferSize", "decodedBodySize"] as const) {
@@ -122,8 +132,12 @@ function matchingTiming(
     // Multiple plausible requests cannot be correlated safely to one element error.
     if (matches.length !== 1) return {};
     const entry = matches[0];
+    const serverTiming = read(entry, "serverTiming");
+    const marker = Array.isArray(serverTiming) && serverTiming.length <= 30
+      ? serverTiming.find(item => read(item, "name") === MEDIA_RATE_LIMIT_TIMING) : undefined;
     return {
       responseStatus: read(entry, "responseStatus") as number | undefined,
+      mediaDenialSource: MEDIA_DENIAL_SOURCES.find(item => item === read(marker, "description")),
       durationMs: read(entry, "duration") as number | undefined,
       transferSize: read(entry, "transferSize") as number | undefined,
       decodedBodySize: read(entry, "decodedBodySize") as number | undefined,
@@ -147,6 +161,7 @@ export function createResourceDiagnostics(browser: ResourceBrowser): (event: Eve
     const facts = {
       elementKind, target: safeTarget, linkRel: read(target, "rel"), linkAs: read(target, "as"),
       mediaErrorCode: read(read(target, "error"), "code"),
+      decorativePhoto: read(target, "ariaHidden") === "true",
     };
     const eventAt = read(event, "timeStamp"), now = monotonicNow(performance);
     if (!source || !safeTarget || installedAt === undefined || now === undefined
