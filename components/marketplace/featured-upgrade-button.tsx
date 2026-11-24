@@ -120,7 +120,7 @@ export function FeaturedUpgradeButton({
           title={`Feature for ${formatGbpFromPence(featuredUpgradePricePence)}`}
         >
           <Star className="h-3.5 w-3.5" />
-          <span className="sr-only">Feature for </span>{formatGbpFromPence(featuredUpgradePricePence)}
+          Feature
         </Button>
         {pendingReview ? (
           <p className="text-xs text-text-secondary">{pendingCopy}</p>
