@@ -58,4 +58,18 @@ describe("homepage sold visibility", () => {
 
     expect(dbMock.listing.count).not.toHaveBeenCalled();
   });
+
+  it("fetches the make and model definitions together and uses the correct IDs for each", async () => {
+    dbMock.attributeDefinition.findMany.mockResolvedValue([{ id: "model-id", slug: "model" }, { id: "make-id", slug: "make" }]);
+    const { default: HomePage } = await import("@/app/(public)/page");
+
+    await HomePage();
+
+    expect(dbMock.attributeDefinition.findMany).toHaveBeenCalledTimes(1);
+    expect(dbMock.attributeDefinition.findMany).toHaveBeenCalledWith({
+      where: { slug: { in: ["make", "model"] } }, select: { id: true, slug: true },
+    });
+    const filters = dbMock.listingAttributeValue.findMany.mock.calls.map(([query]) => query.where.attributeDefinitionId.in);
+    expect(filters).toEqual([["make-id"], ["model-id"]]);
+  });
 });

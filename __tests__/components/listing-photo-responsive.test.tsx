@@ -135,6 +135,13 @@ function expectProtectedCandidates(image: HTMLElement) {
 }
 
 describe("listing photo responsive delivery", () => {
+  it("uses a single protected image for a padded portrait thumbnail", () => {
+    process.env.NEXT_PUBLIC_MEDIA_PROVIDER = "imagekit";
+    const { container } = render(<ListingPhoto photo={portrait} frame="thumb" alt="Thumbnail" sizes="120px" />);
+    expect(container.querySelectorAll("img")).toHaveLength(1);
+    expect(screen.getByRole("img", { name: "Thumbnail" }).getAttribute("src")).toContain("mode=fit");
+  });
+
   it("renders a priority protected photo eagerly without an independent preload", () => {
     process.env.NEXT_PUBLIC_MEDIA_PROVIDER = "imagekit";
     const html = renderToStaticMarkup(

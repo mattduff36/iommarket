@@ -6,6 +6,7 @@ import { signedDeliveryForPhoto } from "@/lib/media/serve-photo";
 import { checkMediaReadRateLimit } from "@/lib/media/read-rate-limit";
 import { toRateLimitDenial } from "@/lib/rate-limit-result";
 import { reportMediaDenial } from "@/lib/media/request-diagnostics";
+import { MEDIA_RATE_LIMIT_TIMING } from "@/lib/media/denial-sources";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -37,7 +38,11 @@ export async function GET(request: NextRequest) {
       retryAfterSeconds: rateDenial.retryAfterSeconds,
       requestId: request.headers.get("x-request-id") ?? request.headers.get("x-vercel-id"), release: process.env.VERCEL_GIT_COMMIT_SHA,
     });
-    return NextResponse.json({ error: rateDenial.message }, { status: rateDenial.status, headers: { "Retry-After": String(rateDenial.retryAfterSeconds), "Cache-Control": "no-store" } });
+    const headers = new Headers({ "Retry-After": String(rateDenial.retryAfterSeconds), "Cache-Control": "no-store" });
+    if (rateDenial.status === 429 && rateResult.denialSource) {
+      headers.set("Server-Timing", `${MEDIA_RATE_LIMIT_TIMING};desc="${rateResult.denialSource}"`);
+    }
+    return NextResponse.json({ error: rateDenial.message }, { status: rateDenial.status, headers });
   }
 
   const photo = parsed.data.source === "revision"

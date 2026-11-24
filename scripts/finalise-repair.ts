@@ -53,7 +53,7 @@ function main() {
 
   process.stdout.write(`Rerunning failed finalise step only: ${repair.rendered}\n`);
   const run = () => { runCommand(REPO_ROOT, "npm", repair.args); };
-  if (artifact.failedStep === "test-run") runVerifiedTests(REPO_ROOT, run);
+  if (artifact.failedStep === "test-run") runVerifiedTests(REPO_ROOT);
   else run();
   clearFinaliseFailureArtifact(REPO_ROOT);
   process.stdout.write("Targeted finalise repair passed. Run the original finalise command once for closure.\n");

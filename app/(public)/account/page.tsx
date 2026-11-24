@@ -1,3 +1,4 @@
+import { AdminPageHeader } from "@/components/admin/admin-page-header";
 export const dynamic = "force-dynamic";
 
 import Link from "@/components/navigation/link";
@@ -161,17 +162,11 @@ export default async function AccountDashboardPage() {
 
   return (
     <div>
-      <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
-        <div>
-          <h1 className="section-heading-accent text-2xl sm:text-3xl font-bold text-text-primary font-heading">
-            Welcome back, {user.name || user.email}
-          </h1>
-          <p className="mt-2 max-w-2xl text-sm text-text-secondary">{welcome}</p>
-        </div>
-        <Button asChild>
+      <AdminPageHeader title={`Welcome back, ${user.name || user.email}`}
+          description={welcome}
+          actions={<Button asChild>
           <Link href={sellHref}>New listing</Link>
-        </Button>
-      </div>
+        </Button>} />
 
       {pendingDealerUpgrade ? (
         <Alert status="warning" className="mb-8">

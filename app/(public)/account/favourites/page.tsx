@@ -1,3 +1,4 @@
+import { AdminPageHeader } from "@/components/admin/admin-page-header";
 export const dynamic = "force-dynamic";
 
 import Link from "@/components/navigation/link";
@@ -56,14 +57,8 @@ export default async function FavouritesPage() {
 
   return (
     <div>
-      <div className="mb-6">
-        <h1 className="section-heading-accent font-heading text-2xl font-bold text-text-primary sm:text-3xl">
-          Saved Listings
-        </h1>
-        <p className="mt-2 text-sm text-text-secondary">
-          {favourites.length} favourite{favourites.length === 1 ? "" : "s"}
-        </p>
-      </div>
+      <AdminPageHeader title="Saved Listings"
+          description={`${favourites.length} favourite${favourites.length === 1 ? "" : "s"}`} />
 
       {favourites.length > 0 ? (
         <div className="grid min-w-0 grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-4 sm:gap-6">

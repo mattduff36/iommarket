@@ -1,3 +1,4 @@
+import { AdminPageHeader } from "@/components/admin/admin-page-header";
 export const dynamic = "force-dynamic";
 
 import Link from "@/components/navigation/link";
@@ -20,14 +21,8 @@ export default async function SavedSearchesPage() {
 
   return (
     <div>
-      <div className="mb-6">
-        <h1 className="section-heading-accent font-heading text-2xl font-bold text-text-primary sm:text-3xl">
-          Saved Searches
-        </h1>
-        <p className="mt-2 max-w-2xl text-sm text-text-secondary">
-          Re-run your favourite filters in one click.
-        </p>
-      </div>
+      <AdminPageHeader title="Saved Searches"
+          description="Re-run your favourite filters in one click." />
 
       {savedSearches.length > 0 ? (
         <div className="space-y-3">

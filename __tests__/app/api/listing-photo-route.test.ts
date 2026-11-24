@@ -55,6 +55,17 @@ describe("GET /api/media/listing-photo widths", () => {
     expect(response.status).toBe(404);
     expect(authorize).toHaveBeenCalledWith("img-1");
   });
+
+  it("marks an application 429 without authorizing or redirecting the image", async () => {
+    vi.mocked(checkRateLimit).mockResolvedValueOnce({ allowed: false, remaining: 0, resetAt: Date.now() + 60_000, unavailable: false });
+    const response = await GET(new NextRequest(request("1600"), {
+      headers: { "x-forwarded-for": "192.0.2.21" },
+    }));
+    expect(response.status).toBe(429);
+    expect(response.headers.get("server-timing")).toBe('itrader-media-limit;desc="shared-window"');
+    expect(response.headers.get("retry-after")).toBeTruthy();
+    expect(authorize).not.toHaveBeenCalled();
+  });
 });
 
 describe("media access during a rate-limit database outage", () => {
@@ -80,4 +91,5 @@ describe("media access during a rate-limit database outage", () => {
     expect(response.headers.get("location")).toBe("https://ik.imagekit.io/example/photo.jpg");
     expect(response.headers.get("cache-control")).toBe("private, max-age=60");
   });
+
 });

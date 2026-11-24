@@ -1,3 +1,4 @@
+import { AdminPageHeader } from "@/components/admin/admin-page-header";
 export const dynamic = "force-dynamic";
 
 import { requireAcceptedUser } from "@/lib/policy/gate";
@@ -15,14 +16,8 @@ export default async function AccountProfilePage() {
 
   return (
     <div>
-      <div className="mb-6">
-        <h1 className="section-heading-accent font-heading text-2xl font-bold text-text-primary sm:text-3xl">
-          Profile &amp; Security
-        </h1>
-        <p className="mt-2 max-w-2xl text-sm text-text-secondary">
-          Update your profile details and manage account security settings.
-        </p>
-      </div>
+      <AdminPageHeader title="Profile & Security"
+          description="Update your profile details and manage account security settings." />
 
       <ProfileSecurityForm
         user={{

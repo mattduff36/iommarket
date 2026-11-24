@@ -28,6 +28,21 @@ function responsiveImage() {
 }
 
 describe("closed resource failure evidence", () => {
+  it("attributes a marked photo 429 and identifies failures of decorative layers", () => {
+    const url = "https://itrader.im/api/media/listing-photo?imageId=private";
+    const { collect } = setup([timing({
+      name: url, responseStatus: 429,
+      serverTiming: [{ name: "itrader-media-limit", description: "shared-window" }],
+    })]);
+    const photo = { tagName: "IMG", currentSrc: url, ariaHidden: "true" };
+    expect(collect(failure(photo))).toMatchObject({
+      responseStatus: 429, mediaDenialSource: "shared-window", decorativePhoto: true,
+    });
+    expect(safeResourceDiagnostic({
+      elementKind: "img", target: "/api/media/listing-photo", responseStatus: 429, mediaDenialSource: "arbitrary",
+    })).not.toHaveProperty("mediaDenialSource");
+  });
+
   it("uses the selected responsive source for exact local timing and sends only closed facts", () => {
     const { collect, performance } = setup();
     const result = collect(failure(responsiveImage()));

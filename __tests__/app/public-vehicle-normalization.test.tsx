@@ -63,7 +63,9 @@ beforeEach(() => {
   mockDb.dealerProfile.findMany.mockResolvedValue([]);
   mockDb.listing.findMany.mockResolvedValue([]);
   mockDb.listing.count.mockResolvedValue(0);
-  mockDb.attributeDefinition.findMany.mockImplementation(async ({ where }) => [{ id: where.slug }]);
+  mockDb.attributeDefinition.findMany.mockImplementation(async ({ where }) =>
+    where.slug.in.map((slug: string) => ({ id: slug, slug })),
+  );
   mockDb.listingAttributeValue.findMany.mockImplementation(async ({ where }) => {
     const slug = where.attributeDefinition?.slug ?? where.attributeDefinitionId.in[0];
     const visible = rows.filter((row) =>

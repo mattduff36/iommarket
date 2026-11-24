@@ -157,7 +157,7 @@ function main() {
       task: step.task,
       action: () => {
         const run = () => { runCommand(REPO_ROOT, "npm", step.args); };
-        if (step.task === "test-run") runVerifiedTests(REPO_ROOT, run);
+        if (step.task === "test-run") runVerifiedTests(REPO_ROOT);
         else run();
       },
     });
