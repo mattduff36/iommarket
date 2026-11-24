@@ -1,3 +1,4 @@
+import { AdminPageHeader } from "@/components/admin/admin-page-header";
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { getCurrentUser } from "@/lib/auth";
@@ -16,14 +17,8 @@ export default async function AcceptPoliciesPage() {
 
   return (
     <div className="mx-auto max-w-xl px-4 py-12 sm:px-6 lg:px-8">
-      <h1 className="section-heading-accent text-2xl font-bold font-heading text-text-primary">
-        Review and accept current policies
-      </h1>
-      <p className="mt-3 text-sm leading-6 text-text-secondary">
-        Existing account holders must confirm they are 18 or over and acknowledge
-        the current Terms, Acceptable Use Policy, and Privacy Policy before using
-        account, seller, or dealer tools. Cookie preferences stay separate.
-      </p>
+      <AdminPageHeader title="Review and accept current policies"
+          description="Existing account holders must confirm they are 18 or over and acknowledge the current Terms, Acceptable Use Policy, and Privacy Policy before using account, seller, or dealer tools. Cookie preferences stay separate." />
       <div className="mt-6">
         <AcceptPoliciesForm />
       </div>

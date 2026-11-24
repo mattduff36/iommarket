@@ -1,3 +1,5 @@
+import { AdminTable, adminNumericCellClass } from "@/components/admin/admin-table";
+import { AdminPageHeader } from "@/components/admin/admin-page-header";
 import type { DealerEntitlement } from "@/lib/dealers/entitlement";
 import Link from "@/components/navigation/link";
 import { redirect } from "next/navigation";
@@ -11,7 +13,7 @@ import { ListingOwnerStatusBadges } from "@/components/listings/owner-status-bad
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { DEALER_TIER_LABELS, getDealerListingCap } from "@/lib/config/dealer-tiers";
 import { getMarketplacePricing } from "@/lib/config/marketplace-pricing";
 import { db } from "@/lib/db";
@@ -185,19 +187,13 @@ function PageHeading({
   actionLabel?: string;
 }) {
   return (
-    <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
-      <div>
-        <h1 className="section-heading-accent font-heading text-2xl font-bold text-text-primary sm:text-3xl">
-          {title}
-        </h1>
-        <p className="mt-2 max-w-2xl text-sm text-text-secondary">{intro}</p>
-      </div>
-      {actionHref && actionLabel ? (
+    <AdminPageHeader title={title}
+          description={intro}
+          actions={actionHref && actionLabel ? (
         <Button asChild>
           <Link href={actionHref}>{actionLabel}</Link>
         </Button>
-      ) : null}
-    </div>
+      ) : null} />
   );
 }
 
@@ -393,19 +389,19 @@ async function OverviewSection({
       </div>
       {recent.length > 0 ? (
         <div className="w-full min-w-0 overflow-x-auto">
-          <Table>
+          <AdminTable>
             <TableHeader>
               <TableRow>
                 <TableHead>Title</TableHead>
                 <TableHead>Category</TableHead>
                 <TableHead>Status</TableHead>
-                <TableHead>Price</TableHead>
+                <TableHead className="text-right">Price</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {recent.map((listing) => (
                 <TableRow key={listing.id}>
-                  <TableCell className="max-w-[220px] truncate font-medium">
+                  <TableCell className="max-w-[24rem] break-words font-medium">
                     <Link
                       href={listingsHref(listing.title, "ALL", "newest", 1)}
                       className="text-text-trust hover:underline"
@@ -421,11 +417,11 @@ async function OverviewSection({
                       statusVariant={STATUS_VARIANT[listing.status] ?? "neutral"}
                     />
                   </TableCell>
-                  <TableCell>£{(listing.price / 100).toLocaleString()}</TableCell>
+                  <TableCell className={adminNumericCellClass}>£{(listing.price / 100).toLocaleString()}</TableCell>
                 </TableRow>
               ))}
             </TableBody>
-          </Table>
+          </AdminTable>
         </div>
       ) : (
         <p className="text-sm text-text-secondary">
@@ -535,13 +531,13 @@ async function ListingsSection({
       {listings.length > 0 ? (
         <>
           <div className="w-full min-w-0 overflow-x-auto">
-            <Table>
+            <AdminTable>
               <TableHeader>
                 <TableRow>
                   <TableHead>Title</TableHead>
                   <TableHead>Category</TableHead>
                   <TableHead>Region</TableHead>
-                  <TableHead>Price</TableHead>
+                  <TableHead className="text-right">Price</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead>Expires</TableHead>
                   <TableHead>Actions</TableHead>
@@ -550,10 +546,10 @@ async function ListingsSection({
               <TableBody>
                 {listings.map((listing) => (
                   <TableRow key={listing.id}>
-                    <TableCell className="max-w-[220px] truncate font-medium">{listing.title}</TableCell>
+                    <TableCell className="max-w-[24rem] break-words font-medium">{listing.title}</TableCell>
                     <TableCell>{listing.category.name}</TableCell>
                     <TableCell>{listing.region.name}</TableCell>
-                    <TableCell>£{(listing.price / 100).toLocaleString()}</TableCell>
+                    <TableCell className={adminNumericCellClass}>£{(listing.price / 100).toLocaleString()}</TableCell>
                     <TableCell>
                       <ListingOwnerStatusBadges
                         status={listing.status}
@@ -583,7 +579,7 @@ async function ListingsSection({
                   </TableRow>
                 ))}
               </TableBody>
-            </Table>
+            </AdminTable>
           </div>
           <div className="mt-6 flex items-center justify-between text-sm">
             <p className="text-text-secondary">

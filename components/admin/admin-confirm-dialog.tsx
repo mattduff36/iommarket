@@ -16,6 +16,7 @@ interface AdminConfirmDialogProps {
   title: string;
   description: string;
   confirmLabel: string;
+  pendingLabel?: string;
   cancelLabel?: string;
   destructive?: boolean;
   pending?: boolean;
@@ -28,6 +29,7 @@ export function AdminConfirmDialog({
   title,
   description,
   confirmLabel,
+  pendingLabel = "Working…",
   cancelLabel = "Cancel",
   destructive = false,
   pending = false,
@@ -59,9 +61,10 @@ export function AdminConfirmDialog({
           <AdminActionButton
             tone={destructive ? "danger" : "primary"}
             onClick={onConfirm}
+            aria-busy={pending || undefined}
             disabled={pending}
           >
-            {pending ? "Working…" : confirmLabel}
+            {pending ? pendingLabel : confirmLabel}
           </AdminActionButton>
         </DialogFooter>
       </DialogContent>

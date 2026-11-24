@@ -1,3 +1,5 @@
+import { AdminTable, adminNumericCellClass } from "@/components/admin/admin-table";
+import { AdminPageHeader } from "@/components/admin/admin-page-header";
 export const dynamic = "force-dynamic";
 
 import Link from "@/components/navigation/link";
@@ -6,7 +8,6 @@ import { db } from "@/lib/db";
 import { Card, CardContent } from "@/components/ui/card";
 import { ListingOwnerStatusBadges } from "@/components/listings/owner-status-badges";
 import {
-  Table,
   TableBody,
   TableCell,
   TableHead,
@@ -146,19 +147,11 @@ export default async function AccountListingsPage({ searchParams }: Props) {
 
   return (
     <div>
-      <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
-        <div>
-          <h1 className="section-heading-accent font-heading text-2xl font-bold text-text-primary sm:text-3xl">
-            My listings
-          </h1>
-          <p className="mt-2 max-w-2xl text-sm text-text-secondary">
-            Listings you have created, with the latest lifecycle updates. Mark a vehicle as sold to tell itrader.im and remove it from live results. A listing awaiting review cannot be edited until you withdraw it back to Draft. You can feature a listing that is awaiting review or live; featured placement starts after approval.
-          </p>
-        </div>
-        <Button asChild>
+      <AdminPageHeader title="My listings"
+          description="Listings you have created, with the latest lifecycle updates. Mark a vehicle as sold to tell itrader.im and remove it from live results. A listing awaiting review cannot be edited until you withdraw it back to Draft. You can feature a listing that is awaiting review or live; featured placement starts after approval."
+          actions={<Button asChild>
           <Link href={sellHref}>New listing</Link>
-        </Button>
-      </div>
+        </Button>} />
 
       <Card className="mb-6">
         <CardContent className="flex flex-col gap-3 p-4 lg:flex-row lg:items-center lg:justify-between">
@@ -205,13 +198,13 @@ export default async function AccountListingsPage({ searchParams }: Props) {
 
       {listings.length > 0 ? (
         <div className="w-full min-w-0 overflow-x-auto">
-        <Table>
+        <AdminTable>
           <TableHeader>
             <TableRow>
               <TableHead>Title</TableHead>
               <TableHead>Category</TableHead>
               <TableHead>Region</TableHead>
-              <TableHead>Price</TableHead>
+              <TableHead className="text-right">Price</TableHead>
               <TableHead>Status</TableHead>
               <TableHead>Last Status Change</TableHead>
               <TableHead>Created</TableHead>
@@ -221,12 +214,12 @@ export default async function AccountListingsPage({ searchParams }: Props) {
           <TableBody>
             {listings.map((listing) => (
               <TableRow key={listing.id}>
-                <TableCell className="font-medium max-w-[220px] truncate">
+                <TableCell className="font-medium max-w-[24rem] break-words">
                   {listing.title}
                 </TableCell>
                 <TableCell>{listing.category.name}</TableCell>
                 <TableCell>{listing.region.name}</TableCell>
-                <TableCell>£{(listing.price / 100).toLocaleString()}</TableCell>
+                <TableCell className={adminNumericCellClass}>£{(listing.price / 100).toLocaleString()}</TableCell>
                 <TableCell>
                   <ListingOwnerStatusBadges
                     status={listing.status}
@@ -270,7 +263,7 @@ export default async function AccountListingsPage({ searchParams }: Props) {
               </TableRow>
             ))}
           </TableBody>
-        </Table>
+        </AdminTable>
         </div>
       ) : (
         <p className="text-sm text-text-secondary">

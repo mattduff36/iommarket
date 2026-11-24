@@ -2,17 +2,17 @@
   "candidate_count": 3369,
   "file_count": 421,
   "csv_sha256": "067f8052f4a9601832f79a6b7762529f567a35995dfd76d9dad8ace07debfec7",
-  "semantic_display_verified_count": 468,
+  "semantic_display_verified_count": 469,
   "deferred_e_candidate_rows": 0,
   "classification_counts": {
-    "displayed": 1126,
-    "internal-only": 1307,
+    "displayed": 1127,
+    "internal-only": 1306,
     "duplicate": 793,
     "irrelevant": 143
   },
   "rule_counts": {
     "ast-public-return": 537,
-    "ast-no-public-sink": 869,
+    "ast-no-public-sink": 868,
     "exact-source-repeat": 793,
     "ast-value-reaches-return": 16,
     "ast-throw-forwarded": 51,
@@ -26,7 +26,7 @@
     "ast-enclosing-public-function": 65,
     "ast-type-or-import": 104,
     "ast-public-sink": 231,
-    "ast-jsx-consumer": 125,
+    "ast-jsx-consumer": 126,
     "ast-jsx-close": 10,
     "ast-non-message-attribute": 3,
     "ast-diagnostic-text": 3
@@ -75,10 +75,10 @@
     "lib-services": 12
   },
   "family_counts": {
-    "public-sink": 1222,
+    "public-sink": 1223,
     "raw-message": 169,
     "fragment": 588,
-    "static-literal": 305,
+    "static-literal": 304,
     "thrown": 891,
     "monitoring": 80,
     "rate-limit": 13,
@@ -387,13 +387,6 @@
       "classification": "displayed"
     },
     {
-      "id": "internal-only:ast-no-public-sink:payments-b-public-boundary:static-literal",
-      "count": 15,
-      "example": "actions/payments.ts:109",
-      "rule_id": "ast-no-public-sink",
-      "classification": "internal-only"
-    },
-    {
       "id": "internal-only:ast-no-public-sink:uploads-b-public-boundary:fragment",
       "count": 15,
       "example": "app/api/listing-images/finalize/route.ts:74",
@@ -419,6 +412,13 @@
       "count": 14,
       "example": "actions/listings.ts:289",
       "rule_id": "ast-diagnostic-call",
+      "classification": "internal-only"
+    },
+    {
+      "id": "internal-only:ast-no-public-sink:payments-b-public-boundary:static-literal",
+      "count": 14,
+      "example": "actions/payments.ts:109",
+      "rule_id": "ast-no-public-sink",
       "classification": "internal-only"
     },
     {
@@ -478,6 +478,13 @@
       "classification": "irrelevant"
     },
     {
+      "id": "displayed:ast-jsx-consumer:payments-b-public-boundary:public-sink",
+      "count": 8,
+      "example": "app/sample-checkout/[id]/checkout.tsx:188",
+      "rule_id": "ast-jsx-consumer",
+      "classification": "displayed"
+    },
+    {
       "id": "displayed:ast-public-sink:deferred-c-payment-internals:public-sink",
       "count": 8,
       "example": "app/(admin)/admin/payments/attach-inbox-form.tsx:20",
@@ -503,13 +510,6 @@
       "count": 7,
       "example": "lib/admin/checklist.ts:169",
       "rule_id": "ast-enclosing-public-function",
-      "classification": "displayed"
-    },
-    {
-      "id": "displayed:ast-jsx-consumer:payments-b-public-boundary:public-sink",
-      "count": 7,
-      "example": "app/sample-checkout/[id]/checkout.tsx:188",
-      "rule_id": "ast-jsx-consumer",
       "classification": "displayed"
     },
     {

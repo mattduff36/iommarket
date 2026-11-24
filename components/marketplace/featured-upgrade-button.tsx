@@ -9,7 +9,7 @@ import {
   useRippleDemoCheckout,
 } from "@/components/payments/ripple-demo-checkout-dialog";
 import { isUncertainActionResult, UNCERTAIN_CHECKOUT_MESSAGE } from "@/lib/forms/outcome-uncertainty";
-import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { isRippleDemoCheckoutUrl } from "@/lib/payments/demo-checkout";
 import { Star } from "lucide-react";
 import { formatGbpFromPence } from "@/lib/formatting/gbp";
@@ -84,18 +84,22 @@ export function FeaturedUpgradeButton({
 
   const statusDialog = (
     <Dialog open={showStatus} onOpenChange={setShowStatus}>
-      <DialogContent>
+      <DialogContent className="grid max-h-[90dvh] gap-5 overflow-y-auto border border-border">
+        <DialogHeader className="gap-2 pr-5 text-left">
         <DialogTitle>{opened ? "Complete your Featured upgrade" : "Open your payment page"}</DialogTitle>
         <DialogDescription>
           {opened ? "Your payment page opened in another tab. If you cannot find it, use either link below."
             : "Your browser may have blocked the payment tab. Allow pop-ups for this site in your browser settings, or continue in this tab."}
         </DialogDescription>
-        {checkoutUrl && <div className="flex flex-wrap gap-3">
+        </DialogHeader>
+        {checkoutUrl && <div className="grid gap-2 sm:grid-cols-2">
           <Button asChild><a href={checkoutUrl} target="_blank" rel="noopener noreferrer">Open payment page</a></Button>
-          <Button asChild variant="ghost"><a href={checkoutUrl}>Continue in this tab</a></Button>
+          <Button asChild variant="ghost" className="border border-border"><a href={checkoutUrl}>Continue in this tab</a></Button>
         </div>}
-        <PaymentAwaitingStatus sampleCheckoutId={sampleCheckoutId} isAwaitingPayment={isAwaitingPayment}
+        <div className="border-t border-border pt-4 empty:hidden">
+          <PaymentAwaitingStatus sampleCheckoutId={sampleCheckoutId} isAwaitingPayment={isAwaitingPayment}
           message="Featured placement updates after payment is confirmed." />
+        </div>
       </DialogContent>
     </Dialog>
   );

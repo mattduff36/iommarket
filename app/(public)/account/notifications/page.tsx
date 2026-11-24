@@ -1,3 +1,4 @@
+import { AdminPageHeader } from "@/components/admin/admin-page-header";
 export const dynamic = "force-dynamic";
 
 import Link from "@/components/navigation/link";
@@ -28,14 +29,8 @@ export default async function AccountNotificationsPage() {
 
   return (
     <div>
-      <div className="mb-6">
-        <h1 className="section-heading-accent font-heading text-2xl font-bold text-text-primary sm:text-3xl">
-          Notification settings
-        </h1>
-        <p className="mt-2 max-w-2xl text-sm text-text-secondary">
-          Choose which optional emails this account receives. Each setting starts on until you turn it off.
-        </p>
-      </div>
+      <AdminPageHeader title="Notification settings"
+          description="Choose which optional emails this account receives. Each setting starts on until you turn it off." />
 
       <Alert status="info" className="mb-6">
         <div className="space-y-2">

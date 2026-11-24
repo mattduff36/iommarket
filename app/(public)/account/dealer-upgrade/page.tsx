@@ -1,3 +1,4 @@
+import { AdminPageHeader } from "@/components/admin/admin-page-header";
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { z } from "zod";
@@ -41,13 +42,8 @@ export default async function DealerUpgradePage({
     <main className="mx-auto max-w-2xl px-4 py-12 sm:px-6 lg:py-16">
       <div className="mb-7">
         <Badge variant="warning">Administrator offer</Badge>
-        <h1 className="section-heading-accent mt-4 text-3xl font-bold font-heading text-text-primary">
-          Your complimentary dealer upgrade
-        </h1>
-        <p className="mt-3 text-sm leading-6 text-text-secondary">
-          Your account is still a private-user account. Review the dealer documents
-          below before choosing whether to activate the upgrade.
-        </p>
+        <AdminPageHeader title="Your complimentary dealer upgrade"
+          description="Your account is still a private-user account. Review the dealer documents below before choosing whether to activate the upgrade." />
       </div>
 
       <Card>
