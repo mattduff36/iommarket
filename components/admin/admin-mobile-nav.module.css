@@ -14,5 +14,5 @@
 .drawer[data-state="closed"] { animation: admin-exit 180ms ease-in both; }
 @keyframes admin-enter { from { transform: translateX(-100%); } to { transform: translateX(0); } }
 @keyframes admin-exit { from { transform: translateX(0); } to { transform: translateX(-100%); } }
-@media (min-width: 1024px) { .trigger { display: none; } }
+@media (min-width: 1280px) { .trigger { display: none; } }
 @media (prefers-reduced-motion: reduce) { .drawer[data-state] { animation: none; } .trigger { transition: none; } }

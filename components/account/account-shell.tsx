@@ -2,7 +2,7 @@
 
 import { NavigationContent } from "@/components/navigation/navigation-pending";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "@/components/navigation/link";
 import { usePathname } from "next/navigation";
 import {
@@ -209,10 +209,17 @@ function AccountMobileNav({
   showPublicProfile: boolean;
 }) {
   const [open, setOpen] = useState(false);
+  useEffect(() => {
+    if (!open || !window.matchMedia) return;
+    const desktop = window.matchMedia("(min-width: 1280px)");
+    const closeOnDesktop = () => { if (desktop.matches) setOpen(false); };
+    desktop.addEventListener("change", closeOnDesktop);
+    return () => desktop.removeEventListener("change", closeOnDesktop);
+  }, [open]);
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <div className="sticky top-16 z-30 flex h-14 items-center gap-3 border-b border-border bg-surface px-4 sm:top-20 lg:hidden">
+      <div className="sticky top-16 z-30 flex h-14 items-center gap-3 border-b border-border bg-surface px-4 sm:top-20 xl:hidden">
         <DialogTrigger asChild>
           <Button type="button" variant="ghost" size="icon" aria-label="Open account menu">
             <Menu className="h-5 w-5" />
@@ -262,7 +269,7 @@ export function AccountShell({
 
   return (
     <div className="flex min-w-0 flex-1">
-      <aside className={`${styles.sidebar} hidden shrink-0 border-r border-border bg-surface lg:block`}>
+      <aside className={`${styles.sidebar} hidden shrink-0 border-r border-border bg-surface xl:block`}>
         <div className="sticky top-20 max-h-[calc(100vh-5rem)] space-y-5 overflow-y-auto px-4 py-4">
           <p className="truncate text-sm font-semibold text-text-primary">{title}</p>
           <AccountNavLinks items={items} activeHref={activeHref} />

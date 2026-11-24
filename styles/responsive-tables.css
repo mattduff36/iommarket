@@ -16,7 +16,15 @@
 }
 .responsive-table-frame :is(th, td) > * { max-width: 100%; }
 .responsive-table-frame .truncate { white-space: normal; overflow-wrap: anywhere; }
-.responsive-table-frame [data-column="actions"] { width: 6rem; }
+.responsive-table-frame [data-column="actions"] { width: 1%; text-align: right; }
+.responsive-table-frame :is([data-column="price"], [data-column="amount"], [data-column="created"], [data-column="expires"], [data-column="joined"], [data-column="date"]) {
+  white-space: nowrap;
+  overflow-wrap: normal;
+}
+.responsive-table-frame [data-column="actions"] > div { min-width: min-content; }
+[data-admin-table="member-listings"] td[data-column="actions"],
+[data-admin-table="dealer-inventory"] td[data-column="actions"] { min-width: 8rem; }
+
 
 /* Preserve short dates and labels; identities remain free to wrap. */
 .responsive-table-frame td.whitespace-nowrap { white-space: nowrap; }
@@ -29,6 +37,8 @@
   /* Keep header controls available for sorting on narrow screens. */
   .responsive-table-frame[data-ready] thead tr { display: flex; flex-wrap: wrap; gap: 4px 12px; padding: 8px; margin-bottom: 12px; }
   .responsive-table-frame[data-ready] th { width: auto; height: auto; background: transparent; padding: 0; }
+  .responsive-table-frame[data-ready] thead:not(:has(a, button, input)) { display: none; }
+  .responsive-table-frame[data-ready] tbody [data-column="actions"] > div { min-width: 0; align-items: flex-start; }
   .responsive-table-frame[data-ready] thead th:not(:has(a, button, input)) { display: none; }
   .responsive-table-frame[data-ready] tbody tr {
     display: block; margin-bottom: 12px; padding: 8px 0;

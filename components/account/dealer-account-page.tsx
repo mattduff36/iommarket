@@ -1,3 +1,4 @@
+import { AdminColumnMenu, AdminColumnVisibility } from "@/components/admin/admin-column-visibility";
 import { AdminTable, adminNumericCellClass } from "@/components/admin/admin-table";
 import { AdminPageHeader } from "@/components/admin/admin-page-header";
 import type { DealerEntitlement } from "@/lib/dealers/entitlement";
@@ -45,6 +46,22 @@ export interface DealerListingQuery {
   sort?: string;
   page?: string;
 }
+
+const DealerRecentColumns = [
+  { id: "title", label: "Title", pinned: true },
+  { id: "category", label: "Category" },
+  { id: "status", label: "Status" },
+  { id: "price", label: "Price" },
+];
+const DealerInventoryColumns = [
+  { id: "title", label: "Title", pinned: true },
+  { id: "category", label: "Category" },
+  { id: "region", label: "Region" },
+  { id: "price", label: "Price" },
+  { id: "status", label: "Status" },
+  { id: "expires", label: "Expires" },
+  { id: "actions", label: "Actions", pinned: true },
+];
 
 const PAGE_SIZE = 25;
 const RECENT_LISTING_LIMIT = 5;
@@ -389,19 +406,21 @@ async function OverviewSection({
       </div>
       {recent.length > 0 ? (
         <div className="w-full min-w-0 overflow-x-auto">
-          <AdminTable>
+          <AdminColumnVisibility tableId="dealer-recent" columns={DealerRecentColumns}>
+            <div className="mb-2 flex justify-end"><AdminColumnMenu /></div>
+            <AdminTable>
             <TableHeader>
               <TableRow>
-                <TableHead>Title</TableHead>
-                <TableHead>Category</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead className="text-right">Price</TableHead>
+                <TableHead data-column="title">Title</TableHead>
+                <TableHead data-column="category">Category</TableHead>
+                <TableHead data-column="status">Status</TableHead>
+                <TableHead data-column="price" className="text-right">Price</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {recent.map((listing) => (
                 <TableRow key={listing.id}>
-                  <TableCell className="max-w-[24rem] break-words font-medium">
+                  <TableCell data-column="title" className="max-w-[24rem] break-words font-medium">
                     <Link
                       href={listingsHref(listing.title, "ALL", "newest", 1)}
                       className="text-text-trust hover:underline"
@@ -409,19 +428,20 @@ async function OverviewSection({
                       {listing.title}
                     </Link>
                   </TableCell>
-                  <TableCell>{listing.category.name}</TableCell>
-                  <TableCell>
+                  <TableCell data-column="category">{listing.category.name}</TableCell>
+                  <TableCell data-column="status">
                     <ListingOwnerStatusBadges
                       status={listing.status}
                       featured={listing.featured}
                       statusVariant={STATUS_VARIANT[listing.status] ?? "neutral"}
                     />
                   </TableCell>
-                  <TableCell className={adminNumericCellClass}>£{(listing.price / 100).toLocaleString()}</TableCell>
+                  <TableCell data-column="price" className={adminNumericCellClass}>£{(listing.price / 100).toLocaleString()}</TableCell>
                 </TableRow>
               ))}
             </TableBody>
           </AdminTable>
+          </AdminColumnVisibility>
         </div>
       ) : (
         <p className="text-sm text-text-secondary">
@@ -531,26 +551,28 @@ async function ListingsSection({
       {listings.length > 0 ? (
         <>
           <div className="w-full min-w-0 overflow-x-auto">
+            <AdminColumnVisibility tableId="dealer-inventory" columns={DealerInventoryColumns}>
+            <div className="mb-2 flex justify-end"><AdminColumnMenu /></div>
             <AdminTable>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Title</TableHead>
-                  <TableHead>Category</TableHead>
-                  <TableHead>Region</TableHead>
-                  <TableHead className="text-right">Price</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Expires</TableHead>
-                  <TableHead>Actions</TableHead>
+                  <TableHead data-column="title">Title</TableHead>
+                  <TableHead data-column="category">Category</TableHead>
+                  <TableHead data-column="region">Region</TableHead>
+                  <TableHead data-column="price" className="text-right">Price</TableHead>
+                  <TableHead data-column="status">Status</TableHead>
+                  <TableHead data-column="expires">Expires</TableHead>
+                  <TableHead data-column="actions">Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {listings.map((listing) => (
                   <TableRow key={listing.id}>
-                    <TableCell className="max-w-[24rem] break-words font-medium">{listing.title}</TableCell>
-                    <TableCell>{listing.category.name}</TableCell>
-                    <TableCell>{listing.region.name}</TableCell>
-                    <TableCell className={adminNumericCellClass}>£{(listing.price / 100).toLocaleString()}</TableCell>
-                    <TableCell>
+                    <TableCell data-column="title" className="max-w-[24rem] break-words font-medium">{listing.title}</TableCell>
+                    <TableCell data-column="category">{listing.category.name}</TableCell>
+                    <TableCell data-column="region">{listing.region.name}</TableCell>
+                    <TableCell data-column="price" className={adminNumericCellClass}>£{(listing.price / 100).toLocaleString()}</TableCell>
+                    <TableCell data-column="status">
                       <ListingOwnerStatusBadges
                         status={listing.status}
                         featured={listing.featured}
@@ -559,10 +581,10 @@ async function ListingsSection({
                       />
                       {listing.revisions?.length > 0 && <span className="mt-1 block text-xs font-medium text-neon-blue-400">Draft changes to review</span>}
                     </TableCell>
-                    <TableCell className="text-text-secondary">
+                    <TableCell data-column="expires" className="text-text-secondary">
                       {listing.expiresAt ? listing.expiresAt.toLocaleDateString("en-GB") : "-"}
                     </TableCell>
-                    <TableCell>
+                    <TableCell data-column="actions">
                       <AccountListingActions
                         listingId={listing.id}
                         title={listing.title}
@@ -580,6 +602,7 @@ async function ListingsSection({
                 ))}
               </TableBody>
             </AdminTable>
+          </AdminColumnVisibility>
           </div>
           <div className="mt-6 flex items-center justify-between text-sm">
             <p className="text-text-secondary">

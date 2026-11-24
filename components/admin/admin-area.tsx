@@ -28,7 +28,7 @@ export async function AdminArea({
   return (
     <div className="admin-area-shell flex min-w-0 flex-1">
         {/* Desktop sidebar */}
-        <aside className="hidden lg:block w-64 shrink-0 border-r border-border bg-surface">
+        <aside className="hidden xl:block w-64 shrink-0 border-r border-border bg-surface">
           <AdminSidebarScroll>
             {ADMIN_NAV_GROUPS.map((group) => {
               const items = navigation.filter((i) => i.group === group.key);

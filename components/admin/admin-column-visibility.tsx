@@ -5,6 +5,7 @@ import {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
   type ReactNode,
 } from "react";
@@ -74,11 +75,25 @@ export function AdminColumnVisibility({
   columns: readonly AdminColumn[];
   children: ReactNode;
 }) {
-  const [hidden, setHidden] = useState(() => defaultHiddenColumnIds(columns));
-
+  const frame = useRef<HTMLDivElement>(null);
+  const [compact, setCompact] = useState(false);
   useEffect(() => {
-    setHidden(readStoredHidden(tableId, columns));
-  }, [tableId, columns]);
+    const element = frame.current;
+    if (!element || typeof ResizeObserver === "undefined") return;
+    const observer = new ResizeObserver(([entry]) => setCompact(entry.contentRect.width < 980));
+    observer.observe(element);
+    return () => observer.disconnect();
+  }, []);
+
+  const preferenceKey = compact ? `${tableId}-compact` : tableId;
+  const defaults = useMemo(() => compact
+    ? columns.map(column => ["category", "region", "created", "updated", "expires", "reports", "joined", "phone"].includes(column.id)
+      ? { ...column, defaultVisible: false } : column)
+    : columns, [columns, compact]);
+  const [hidden, setHidden] = useState(() => defaultHiddenColumnIds(columns));
+  useEffect(() => {
+    setHidden(readStoredHidden(preferenceKey, defaults));
+  }, [preferenceKey, defaults]);
 
   const value = useMemo<ColumnVisibilityContextValue>(() => ({
     columns,
@@ -90,19 +105,20 @@ export function AdminColumnVisibility({
         const next = current.includes(columnId)
           ? current.filter((id) => id !== columnId)
           : [...current, columnId];
-        writeStoredHidden(tableId, next);
+        writeStoredHidden(preferenceKey, next);
         return next;
       });
     },
     reset: () => {
-      removeStoredHidden(tableId);
-      setHidden(defaultHiddenColumnIds(columns));
+      removeStoredHidden(preferenceKey);
+      setHidden(defaultHiddenColumnIds(defaults));
     },
-  }), [columns, hidden, tableId]);
+  }), [columns, hidden, preferenceKey, defaults]);
 
   return (
     <ColumnVisibilityContext.Provider value={value}>
       <div
+        ref={frame}
         data-admin-table={tableId}
         data-hidden={hidden.length > 0 ? hidden.join(" ") : undefined}
       >
