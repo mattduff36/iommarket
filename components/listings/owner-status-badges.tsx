@@ -1,3 +1,4 @@
+import { LISTING_STATUS_VARIANT } from "@/lib/listings/status-variant";
 import { Badge, type BadgeProps } from "@/components/ui/badge";
 
 const STATUS_LABELS: Record<string, string> = {
@@ -20,7 +21,7 @@ export function ListingOwnerStatusBadges({
   featured,
   featuredPurchased = false,
   statusDetail,
-  statusVariant = "neutral",
+  statusVariant = LISTING_STATUS_VARIANT[status] ?? "neutral",
 }: {
   status: string;
   featured: boolean;

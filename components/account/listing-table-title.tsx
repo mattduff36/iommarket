@@ -12,7 +12,7 @@ export function ListingTableTitle({ image, children }: {
     <div className="listing-table-title">
       <div className="listing-table-thumbnail">
         {photo ? (
-          <ListingPhoto photo={photo} frame="thumb" alt="" sizes="(max-width: 820px) 80px, 48px" fillContainer />
+          <ListingPhoto photo={photo} frame="thumb" alt="" sizes="(max-width: 820px) 160px, 48px" fillContainer />
         ) : <ImageIcon aria-hidden="true" className="size-4 text-text-tertiary" />}
       </div>
       <span className="min-w-0">{children}</span>

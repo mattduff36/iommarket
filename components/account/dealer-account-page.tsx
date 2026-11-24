@@ -69,14 +69,6 @@ const RECENT_LISTING_LIMIT = 5;
 const STATUS_FILTERS = ["ALL", "DRAFT", "PENDING", "APPROVED", "LIVE", "EXPIRED", "TAKEN_DOWN", "SOLD"] as const;
 type StatusFilter = (typeof STATUS_FILTERS)[number];
 
-const STATUS_VARIANT: Record<string, "neutral" | "warning" | "success" | "error" | "info" | "premium"> = {
-  DRAFT: "neutral",
-  PENDING: "warning",
-  LIVE: "success",
-  EXPIRED: "neutral",
-  TAKEN_DOWN: "error",
-  SOLD: "premium",
-};
 
 const listingInclude = {
   revisions: { where: { status: "DRAFT" as const }, select: { id: true }, take: 1 },
@@ -437,7 +429,7 @@ async function OverviewSection({
                     <ListingOwnerStatusBadges
                       status={listing.status}
                       featured={listing.featured}
-                      statusVariant={STATUS_VARIANT[listing.status] ?? "neutral"}
+
                     />
                   </TableCell>
                   <TableCell data-column="price" className={adminNumericCellClass}>£{(listing.price / 100).toLocaleString()}</TableCell>
@@ -583,7 +575,7 @@ async function ListingsSection({
                         status={listing.status}
                         featured={listing.featured}
                         featuredPurchased={listing.payments.length > 0}
-                        statusVariant={STATUS_VARIANT[listing.status] ?? "neutral"}
+
                       />
                       {listing.revisions?.length > 0 && <span className="mt-1 block text-xs font-medium text-neon-blue-400">Draft changes to review</span>}
                     </TableCell>
