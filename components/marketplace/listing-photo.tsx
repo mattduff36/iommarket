@@ -1,7 +1,10 @@
 "use client";
 
-import { useState, type CSSProperties } from "react";
+import type { CSSProperties } from "react";
 import Image from "next/image";
+import { Button } from "@/components/ui/button";
+import { Skeleton } from "@/components/ui/skeleton";
+import { usePhotoRetry } from "./use-photo-retry";
 import { cn } from "@/lib/cn";
 import {
   LISTING_PHOTO_FRAMES,
@@ -18,6 +21,7 @@ interface PhotoRecovery {
   onPhotoLoad?: (src: string) => void;
   onPhotoUnavailable?: () => void;
   onThumbnailUnavailable?: () => void;
+  allowManualRetry?: boolean;
 }
 
 interface ListingPhotoProps extends PhotoRecovery {
@@ -69,6 +73,7 @@ function ProviderListingPhoto({
   onPhotoLoad,
   onPhotoUnavailable,
   onThumbnailUnavailable,
+  allowManualRetry,
 }: {
   photo: ListingPhotoSource;
   frame: ListingPhotoFrame;
@@ -81,10 +86,7 @@ function ProviderListingPhoto({
   unoptimized?: boolean;
   hidden?: boolean;
 } & PhotoRecovery) {
-  const [failed, setFailed] = useState(false);
-  const [retrySrc, setRetrySrc] = useState<string>();
-  const [recovered, setRecovered] = useState(false);
-  if (failed && hidden) return null;
+  const attempt = usePhotoRetry({ decorative: hidden, onPhotoLoad, onPhotoUnavailable });
 
   const { alt: photoAlt, ...imageProps } = buildProviderListingPhotoAttributes({
     photo,
@@ -98,10 +100,17 @@ function ProviderListingPhoto({
     unoptimized,
     "aria-hidden": hidden || undefined,
   });
-  const showThumbnail = Boolean(thumbnailSrc && (failed || (retrySrc && !recovered)));
+  const showThumbnail = Boolean(thumbnailSrc && attempt.showFallback);
+  let retrySrc: string | undefined;
+  if (attempt.failedSource) {
+    const url = new URL(attempt.failedSource);
+    url.searchParams.set("retry", String(attempt.retries));
+    retrySrc = url.pathname + url.search;
+  }
   // Picture prevents React SSR from hoisting a separate image preload.
   return (
     <>
+      {attempt.showLoading && !showThumbnail && <PhotoLoading frame={frame} announce={Boolean(photoAlt)} />}
       {showThumbnail && (
         <picture>
           <img src={thumbnailSrc} alt={photoAlt} className={className}
@@ -109,7 +118,7 @@ function ProviderListingPhoto({
             data-photo-fallback="thumbnail" />
         </picture>
       )}
-      {!failed && (
+      {attempt.showImage && (
         <picture>
           <img
             {...imageProps}
@@ -118,31 +127,36 @@ function ProviderListingPhoto({
             style={showThumbnail ? { ...imageProps.style, opacity: 0 } : imageProps.style}
             src={retrySrc ?? imageProps.src}
             srcSet={retrySrc ? undefined : imageProps.srcSet}
-            onLoad={({ currentTarget }) => {
-              if (retrySrc) setRecovered(true);
-              if (!hidden && currentTarget.naturalWidth) onPhotoLoad?.(currentTarget.currentSrc || currentTarget.src);
-            }}
-            onError={({ currentTarget }) => {
-              if (!hidden && !retrySrc) {
-                const url = new URL(currentTarget.currentSrc || imageProps.src, window.location.origin);
-                url.searchParams.set("retry", "1");
-                setRetrySrc(url.pathname + url.search);
-                setRecovered(false);
-                return;
-              }
-              setFailed(true);
-              if (!hidden) onPhotoUnavailable?.();
-            }}
+            onLoad={attempt.onLoad}
+            onError={attempt.onError}
           />
         </picture>
       )}
-      {failed && !showThumbnail && !onPhotoUnavailable && <PhotoUnavailable />}
+      {attempt.status === "unavailable" && !hidden && !showThumbnail && !onPhotoUnavailable
+        && <PhotoUnavailable onRetry={allowManualRetry ? attempt.retry : undefined} />}
     </>
   );
 }
 
-function PhotoUnavailable() {
-  return <span className="absolute inset-0 grid place-content-center p-3 text-center text-sm text-text-secondary">Photo temporarily unavailable</span>;
+function PhotoLoading({ frame, announce }: { frame: ListingPhotoFrame; announce: boolean }) {
+  const label = frame === "gallery" && announce;
+  return (
+    <Skeleton data-photo-loading="" role={label ? "status" : undefined} aria-hidden={label ? undefined : true}
+      className="pointer-events-none absolute inset-0 grid place-content-center rounded-none text-sm text-text-secondary motion-reduce:animate-none">
+      {label && "Loading photo…"}
+    </Skeleton>
+  );
+}
+
+function PhotoUnavailable({ onRetry }: { onRetry?: () => void }) {
+  return (
+    <div className="absolute inset-0 grid place-content-center justify-items-center gap-2 p-3 text-center text-sm text-text-secondary">
+      <span>Photo temporarily unavailable</span>
+      {onRetry && (
+        <Button type="button" size="sm" className="pointer-events-auto relative z-20" onClick={onRetry}>Try again</Button>
+      )}
+    </div>
+  );
 }
 
 function CloudinaryListingPhoto({
@@ -161,6 +175,7 @@ function CloudinaryListingPhoto({
   onPhotoLoad,
   onPhotoUnavailable,
   onThumbnailUnavailable,
+  allowManualRetry,
 }: {
   photo: ListingPhotoSource;
   frame: ListingPhotoFrame;
@@ -175,33 +190,35 @@ function CloudinaryListingPhoto({
   imageSrc: string;
 } & PhotoRecovery) {
   const useCloudinary = photo.provider === "CLOUDINARY";
-  const [failed, setFailed] = useState(false);
-  if (failed || imageSrc === "/media-unresolved.svg") {
-    if (hidden) return null;
-    return thumbnailSrc ? (
-      <Image src={thumbnailSrc} alt={alt} fill unoptimized className="object-contain" onError={onThumbnailUnavailable} />
-    ) : !onPhotoUnavailable && <PhotoUnavailable />;
-  }
+  const attempt = usePhotoRetry({ decorative: hidden, onPhotoLoad, onPhotoUnavailable });
+  const unresolved = imageSrc === "/media-unresolved.svg";
+  const showThumbnail = Boolean(thumbnailSrc && (unresolved || attempt.showFallback));
   return (
-    <Image
-      src={imageSrc}
-      alt={alt}
-      fill
-      sizes={sizes}
-      priority={priority}
-      className={className}
-      style={style}
-      aria-hidden={hidden || undefined}
-      loader={useCloudinary ? listingPhotoLoader(photo, frame, mode) : undefined}
-      unoptimized={unoptimized || !useCloudinary}
-      onLoad={({ currentTarget }) => {
-        if (!hidden && currentTarget.naturalWidth) onPhotoLoad?.(currentTarget.currentSrc || currentTarget.src);
-      }}
-      onError={() => {
-        setFailed(true);
-        if (!hidden) onPhotoUnavailable?.();
-      }}
-    />
+    <>
+      {!unresolved && attempt.showLoading && !showThumbnail && <PhotoLoading frame={frame} announce={Boolean(alt)} />}
+      {showThumbnail && thumbnailSrc && (
+        <Image src={thumbnailSrc} alt={alt} fill unoptimized className="object-contain" onError={onThumbnailUnavailable}
+          data-photo-fallback="thumbnail" />
+      )}
+      {!unresolved && attempt.showImage && (
+        <Image
+          src={imageSrc}
+          alt={showThumbnail ? "" : alt}
+          fill
+          sizes={sizes}
+          priority={priority && attempt.retries === 0}
+          className={className}
+          style={showThumbnail ? { ...style, opacity: 0 } : style}
+          aria-hidden={hidden || showThumbnail || undefined}
+          loader={useCloudinary ? listingPhotoLoader(photo, frame, mode) : undefined}
+          unoptimized={unoptimized || !useCloudinary}
+          onLoad={attempt.onLoad}
+          onError={attempt.onError}
+        />
+      )}
+      {(unresolved || attempt.status === "unavailable") && !hidden && !showThumbnail && !onPhotoUnavailable
+        && <PhotoUnavailable onRetry={allowManualRetry && !unresolved ? attempt.retry : undefined} />}
+    </>
   );
 }
 
@@ -220,6 +237,7 @@ export function ListingPhoto({
   onPhotoLoad,
   onPhotoUnavailable,
   onThumbnailUnavailable,
+  allowManualRetry,
 }: ListingPhotoProps) {
   const frameSize = LISTING_PHOTO_FRAMES[frame];
   const fitMode =
@@ -265,6 +283,7 @@ export function ListingPhoto({
           onPhotoLoad={onPhotoLoad}
           onPhotoUnavailable={onPhotoUnavailable}
           onThumbnailUnavailable={onThumbnailUnavailable}
+          allowManualRetry={allowManualRetry}
         />
       );
     }
@@ -286,6 +305,7 @@ export function ListingPhoto({
         onPhotoLoad={onPhotoLoad}
         onPhotoUnavailable={onPhotoUnavailable}
         onThumbnailUnavailable={onThumbnailUnavailable}
+        allowManualRetry={allowManualRetry}
       />
     );
   }

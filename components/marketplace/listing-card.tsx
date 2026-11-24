@@ -106,6 +106,7 @@ const ListingCard = React.forwardRef<HTMLElement, ListingCardProps>(
                 })!
               }
               frame="card"
+              allowManualRetry
               fillContainer
               alt={imageAlt ?? title}
               sizes={
