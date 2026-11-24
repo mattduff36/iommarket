@@ -116,3 +116,5 @@
     margin-top: -4px; border-top: 1px solid var(--sem-border-default); pointer-events: none;
   }
 }
+
+.responsive-table-frame tr:has(.listing-table-title) > td[data-column="price"] { color: #fff; }
