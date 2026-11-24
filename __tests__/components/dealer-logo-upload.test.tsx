@@ -1,7 +1,9 @@
 // @vitest-environment jsdom
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { renderToStaticMarkup } from "react-dom/server";
 import { DealerLogoUpload } from "@/app/(public)/dealer/profile/dealer-logo-upload";
+import { DealerLogo } from "@/components/dealers/dealer-logo";
 import { DEALER_LOGO_MAX_FILE_SIZE_BYTES } from "@/lib/upload/dealer-logo";
 
 vi.mock("next/image", () => ({
@@ -9,6 +11,26 @@ vi.mock("next/image", () => ({
     <img alt={alt} {...props} />
   ),
 }));
+
+describe("DealerLogo delivery", () => {
+  afterEach(() => cleanup());
+
+  const logoUrl = "https://res.cloudinary.com/demo/image/upload/dealer-logo.png";
+
+  it("keeps the protected image visible without a separate server-rendered preload", () => {
+    const html = renderToStaticMarkup(<DealerLogo dealerName="Northshore Motors" logoUrl={logoUrl} />);
+    const document = new DOMParser().parseFromString(html, "text/html");
+    expect(document.querySelector('img[alt="Northshore Motors logo"]')?.getAttribute("src"))
+      .toBe(`/api/media/cloudinary-ref?url=${encodeURIComponent(logoUrl)}`);
+    expect(document.querySelector('link[rel="preload"][as="image"]')).toBeNull();
+  });
+
+  it("shows the dealer initial if the visible protected image fails", () => {
+    render(<DealerLogo dealerName="Northshore Motors" logoUrl={logoUrl} />);
+    fireEvent.error(screen.getByAltText("Northshore Motors logo"));
+    expect(screen.getByLabelText("No logo for Northshore Motors").textContent).toBe("N");
+  });
+});
 
 describe("DealerLogoUpload", () => {
   afterEach(() => cleanup());
