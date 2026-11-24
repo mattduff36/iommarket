@@ -176,3 +176,27 @@ test("dealer withdraw returns a pending listing to draft once @account-actions",
   });
   expect(await db.listingStatusEvent.count({ where: { listingId: listing.id, action: "WITHDRAW" } })).toBe(1);
 });
+
+test("member columns respond to rendered content and card layout", async ({ page }) => {
+  const member = await createDisposableAccount("member");
+  await seedDisposableListing({ userId: member.userId, status: "LIVE", title: "2019 Audi Q7" });
+  await page.setViewportSize({ width: 1018, height: 900 });
+  await signIn(page, member.email, member.password, "/account/listings");
+
+  const table = page.locator('[data-admin-table="member-listings"]');
+  const category = table.locator('td[data-column="category"]').first();
+  const menu = table.getByRole("button", { name: "Columns" });
+  await expect(menu).toBeVisible();
+  await category.evaluate(cell => { cell.textContent = "Cars"; });
+  await expect(category).toBeVisible();
+  await category.evaluate(cell => { cell.textContent = "Commercial vehicles and equipment ".repeat(25); });
+  await expect(category).toBeHidden();
+  await expect(table.locator('td[data-column="created"]').first()).toBeVisible();
+  await category.evaluate(cell => { cell.textContent = "Cars"; });
+  await expect(category).toBeVisible();
+
+  await page.setViewportSize({ width: 390, height: 844 });
+  await expect(menu).toBeHidden();
+  await page.setViewportSize({ width: 1018, height: 900 });
+  await expect(menu).toBeVisible();
+});

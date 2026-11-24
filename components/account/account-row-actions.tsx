@@ -1,6 +1,6 @@
 "use client";
 
-import { ChevronDown } from "lucide-react";
+import { Ellipsis } from "lucide-react";
 import Link from "@/components/navigation/link";
 import {
   DropdownMenu,
@@ -94,17 +94,18 @@ export function AccountRowActions({
       <DropdownMenuTrigger
         type="button"
         aria-label={pendingLabel ? `${label}. ${pendingLabel}` : label}
+        title={label}
         aria-busy={pending || undefined}
         disabled={pending}
         className={cn(
-          "inline-flex h-8 w-[7.5rem] items-center justify-between gap-2 rounded-md border border-border bg-surface px-2.5 text-xs font-medium text-text-secondary",
+          "inline-flex h-8 min-w-8 items-center justify-center gap-1 rounded-md border border-border bg-surface px-1.5 text-xs font-medium text-text-secondary",
           "hover:border-border-focus hover:bg-surface-elevated hover:text-text-primary",
           "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-neon-blue-500 focus-visible:ring-offset-2 focus-visible:ring-offset-canvas",
           "disabled:cursor-not-allowed disabled:opacity-50",
         )}
       >
-        <span className="truncate">{pendingLabel ?? "Actions"}</span>
-        <ChevronDown className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+        {pendingLabel ? <span>{pendingLabel}</span> : null}
+        <Ellipsis className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" side="bottom" collisionPadding={12} className="min-w-52">
         {routineWithoutEdgeSeparators.map((action) => renderAction(action, pending))}

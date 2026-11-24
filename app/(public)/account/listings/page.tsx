@@ -1,5 +1,17 @@
+import { ListingTableTitle } from "@/components/account/listing-table-title";
+import { AdminColumnMenu, AdminColumnVisibility } from "@/components/admin/admin-column-visibility";
 import { AdminTable, adminNumericCellClass } from "@/components/admin/admin-table";
 import { AdminPageHeader } from "@/components/admin/admin-page-header";
+const MemberListingsColumns = [
+  { id: "title", label: "Title", pinned: true },
+  { id: "category", label: "Category" },
+  { id: "region", label: "Region" },
+  { id: "price", label: "Price" },
+  { id: "status", label: "Status" },
+  { id: "created", label: "Created" },
+  { id: "actions", label: "Actions", pinned: true },
+];
+
 export const dynamic = "force-dynamic";
 
 import Link from "@/components/navigation/link";
@@ -94,6 +106,7 @@ export default async function AccountListingsPage({ searchParams }: Props) {
   };
 
   const listingInclude = {
+    images: { take: 1, orderBy: { order: "asc" as const } },
     revisions: { where: { status: "DRAFT" as const }, select: { id: true }, take: 1 },
     category: { select: { name: true } },
     region: { select: { name: true } },
@@ -154,7 +167,7 @@ export default async function AccountListingsPage({ searchParams }: Props) {
         </Button>} />
 
       <Card className="mb-6">
-        <CardContent className="flex flex-col gap-3 p-4 lg:flex-row lg:items-center lg:justify-between">
+        <CardContent className="flex flex-col gap-3 p-4 2xl:flex-row 2xl:items-center 2xl:justify-between">
           <div className="flex min-w-0 flex-wrap gap-2" role="group" aria-label="Listing status">
             {STATUS_FILTERS.map((item) => (
               <Link
@@ -181,7 +194,7 @@ export default async function AccountListingsPage({ searchParams }: Props) {
               name="sort"
               aria-label="Sort listings"
               defaultValue={sort}
-              className="h-9 min-w-0 flex-1 rounded-md border border-border bg-surface px-2 text-sm text-text-primary"
+              className="h-9 min-w-36 flex-1 rounded-md border border-border bg-surface px-2 text-sm text-text-primary"
             >
               {SELLER_LISTING_SORT_OPTIONS.map((option) => (
                 <option key={option.value} value={option.value}>
@@ -198,30 +211,32 @@ export default async function AccountListingsPage({ searchParams }: Props) {
 
       {listings.length > 0 ? (
         <div className="w-full min-w-0 overflow-x-auto">
-        <AdminTable>
+        <AdminColumnVisibility tableId="member-listings" columns={MemberListingsColumns}>
+            <div className="mb-2 flex justify-end"><AdminColumnMenu /></div>
+            <AdminTable>
           <TableHeader>
             <TableRow>
-              <TableHead>Title</TableHead>
-              <TableHead>Category</TableHead>
-              <TableHead>Region</TableHead>
-              <TableHead className="text-right">Price</TableHead>
-              <TableHead>Status</TableHead>
-              <TableHead>Last Status Change</TableHead>
-              <TableHead>Created</TableHead>
-              <TableHead>Actions</TableHead>
+              <TableHead data-column="title">Title</TableHead>
+              <TableHead data-column="category">Category</TableHead>
+              <TableHead data-column="region">Region</TableHead>
+              <TableHead data-column="price" className="text-right">Price</TableHead>
+              <TableHead data-column="status">Status</TableHead>
+              <TableHead data-column="created">Created</TableHead>
+              <TableHead data-column="actions">Actions</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {listings.map((listing) => (
               <TableRow key={listing.id}>
-                <TableCell className="font-medium max-w-[24rem] break-words">
-                  {listing.title}
+                <TableCell data-column="title" className="font-medium max-w-[24rem] break-words">
+                  <ListingTableTitle listingId={listing.id} image={listing.images?.[0]}>{listing.title}</ListingTableTitle>
                 </TableCell>
-                <TableCell>{listing.category.name}</TableCell>
-                <TableCell>{listing.region.name}</TableCell>
-                <TableCell className={adminNumericCellClass}>£{(listing.price / 100).toLocaleString()}</TableCell>
-                <TableCell>
+                <TableCell data-column="category">{listing.category.name}</TableCell>
+                <TableCell data-column="region">{listing.region.name}</TableCell>
+                <TableCell data-column="price" className={adminNumericCellClass}>£{(listing.price / 100).toLocaleString()}</TableCell>
+                <TableCell data-column="status">
                   <ListingOwnerStatusBadges
+                    statusDetail={listing.statusEvents[0] ? `Last status change: ${listing.statusEvents[0].fromStatus ?? "-"} → ${listing.statusEvents[0].toStatus} (${listing.statusEvents[0].createdAt.toLocaleDateString("en-GB")})` : undefined}
                     status={listing.status}
                     featured={listing.featured}
                     featuredPurchased={listing.payments.some(
@@ -231,15 +246,10 @@ export default async function AccountListingsPage({ searchParams }: Props) {
                   />
                   {listing.revisions.length > 0 && <span className="mt-1 block text-xs font-medium text-neon-blue-400">Draft changes to review</span>}
                 </TableCell>
-                <TableCell className="text-text-secondary text-xs">
-                  {listing.statusEvents[0]
-                    ? `${listing.statusEvents[0].fromStatus ?? "-"} -> ${listing.statusEvents[0].toStatus} (${listing.statusEvents[0].createdAt.toLocaleDateString("en-GB")})`
-                    : "-"}
-                </TableCell>
-                <TableCell className="text-text-secondary">
+                <TableCell data-column="created" className="text-text-secondary">
                   {listing.createdAt.toLocaleDateString("en-GB")}
                 </TableCell>
-                <TableCell>
+                <TableCell data-column="actions">
                   <AccountListingActions
                     listingId={listing.id}
                     title={listing.title}
@@ -264,6 +274,7 @@ export default async function AccountListingsPage({ searchParams }: Props) {
             ))}
           </TableBody>
         </AdminTable>
+          </AdminColumnVisibility>
         </div>
       ) : (
         <p className="text-sm text-text-secondary">

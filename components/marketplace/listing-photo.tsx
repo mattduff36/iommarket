@@ -13,7 +13,14 @@ import { getListingPhotoFitMode } from "@/lib/images/fit-policy";
 import { buildProviderListingPhotoAttributes } from "@/lib/images/listing-photo-attributes";
 import { hasValidFocalPoint, type ListingPhotoSource } from "@/lib/images/photo";
 
-interface ListingPhotoProps {
+interface PhotoRecovery {
+  thumbnailSrc?: string;
+  onPhotoLoad?: (src: string) => void;
+  onPhotoUnavailable?: () => void;
+  onThumbnailUnavailable?: () => void;
+}
+
+interface ListingPhotoProps extends PhotoRecovery {
   photo: ListingPhotoSource;
   frame: ListingPhotoFrame;
   alt: string;
@@ -58,6 +65,10 @@ function ProviderListingPhoto({
   style,
   unoptimized = false,
   hidden = false,
+  thumbnailSrc,
+  onPhotoLoad,
+  onPhotoUnavailable,
+  onThumbnailUnavailable,
 }: {
   photo: ListingPhotoSource;
   frame: ListingPhotoFrame;
@@ -69,8 +80,10 @@ function ProviderListingPhoto({
   style?: CSSProperties;
   unoptimized?: boolean;
   hidden?: boolean;
-}) {
+} & PhotoRecovery) {
   const [failed, setFailed] = useState(false);
+  const [retrySrc, setRetrySrc] = useState<string>();
+  const [recovered, setRecovered] = useState(false);
   if (failed && hidden) return null;
 
   const { alt: photoAlt, ...imageProps } = buildProviderListingPhotoAttributes({
@@ -85,20 +98,51 @@ function ProviderListingPhoto({
     unoptimized,
     "aria-hidden": hidden || undefined,
   });
-  // Same-origin signing URLs must not go through /_next/image, which cannot
-  // forward the viewer's session. Widths come from Next's getImgProps.
-  // Picture also prevents React SSR from hoisting an independent image preload.
+  const showThumbnail = Boolean(thumbnailSrc && (failed || (retrySrc && !recovered)));
+  // Picture prevents React SSR from hoisting a separate image preload.
   return (
-    <picture>
-      <img
-        {...imageProps}
-        alt={photoAlt}
-        src={failed ? "/images/placeholder-listing.png" : imageProps.src}
-        srcSet={failed ? undefined : imageProps.srcSet}
-        onError={failed ? undefined : () => setFailed(true)}
-      />
-    </picture>
+    <>
+      {showThumbnail && (
+        <picture>
+          <img src={thumbnailSrc} alt={photoAlt} className={className}
+            style={{ ...imageProps.style, objectFit: "contain" }} onError={onThumbnailUnavailable}
+            data-photo-fallback="thumbnail" />
+        </picture>
+      )}
+      {!failed && (
+        <picture>
+          <img
+            {...imageProps}
+            alt={showThumbnail ? "" : photoAlt}
+            aria-hidden={showThumbnail ? true : imageProps["aria-hidden"]}
+            style={showThumbnail ? { ...imageProps.style, opacity: 0 } : imageProps.style}
+            src={retrySrc ?? imageProps.src}
+            srcSet={retrySrc ? undefined : imageProps.srcSet}
+            onLoad={({ currentTarget }) => {
+              if (retrySrc) setRecovered(true);
+              if (!hidden && currentTarget.naturalWidth) onPhotoLoad?.(currentTarget.currentSrc || currentTarget.src);
+            }}
+            onError={({ currentTarget }) => {
+              if (!hidden && !retrySrc) {
+                const url = new URL(currentTarget.currentSrc || imageProps.src, window.location.origin);
+                url.searchParams.set("retry", "1");
+                setRetrySrc(url.pathname + url.search);
+                setRecovered(false);
+                return;
+              }
+              setFailed(true);
+              if (!hidden) onPhotoUnavailable?.();
+            }}
+          />
+        </picture>
+      )}
+      {failed && !showThumbnail && !onPhotoUnavailable && <PhotoUnavailable />}
+    </>
   );
+}
+
+function PhotoUnavailable() {
+  return <span className="absolute inset-0 grid place-content-center p-3 text-center text-sm text-text-secondary">Photo temporarily unavailable</span>;
 }
 
 function CloudinaryListingPhoto({
@@ -113,6 +157,10 @@ function CloudinaryListingPhoto({
   unoptimized = false,
   hidden = false,
   imageSrc,
+  thumbnailSrc,
+  onPhotoLoad,
+  onPhotoUnavailable,
+  onThumbnailUnavailable,
 }: {
   photo: ListingPhotoSource;
   frame: ListingPhotoFrame;
@@ -125,8 +173,15 @@ function CloudinaryListingPhoto({
   unoptimized?: boolean;
   hidden?: boolean;
   imageSrc: string;
-}) {
+} & PhotoRecovery) {
   const useCloudinary = photo.provider === "CLOUDINARY";
+  const [failed, setFailed] = useState(false);
+  if (failed || imageSrc === "/media-unresolved.svg") {
+    if (hidden) return null;
+    return thumbnailSrc ? (
+      <Image src={thumbnailSrc} alt={alt} fill unoptimized className="object-contain" onError={onThumbnailUnavailable} />
+    ) : !onPhotoUnavailable && <PhotoUnavailable />;
+  }
   return (
     <Image
       src={imageSrc}
@@ -139,6 +194,13 @@ function CloudinaryListingPhoto({
       aria-hidden={hidden || undefined}
       loader={useCloudinary ? listingPhotoLoader(photo, frame, mode) : undefined}
       unoptimized={unoptimized || !useCloudinary}
+      onLoad={({ currentTarget }) => {
+        if (!hidden && currentTarget.naturalWidth) onPhotoLoad?.(currentTarget.currentSrc || currentTarget.src);
+      }}
+      onError={() => {
+        setFailed(true);
+        if (!hidden) onPhotoUnavailable?.();
+      }}
     />
   );
 }
@@ -154,6 +216,10 @@ export function ListingPhoto({
   unoptimized = false,
   variant = "adaptive",
   fillContainer = false,
+  thumbnailSrc,
+  onPhotoLoad,
+  onPhotoUnavailable,
+  onThumbnailUnavailable,
 }: ListingPhotoProps) {
   const frameSize = LISTING_PHOTO_FRAMES[frame];
   const fitMode =
@@ -195,11 +261,16 @@ export function ListingPhoto({
           style={style}
           unoptimized={unoptimized}
           hidden={hidden}
+          thumbnailSrc={hidden ? undefined : thumbnailSrc}
+          onPhotoLoad={onPhotoLoad}
+          onPhotoUnavailable={onPhotoUnavailable}
+          onThumbnailUnavailable={onThumbnailUnavailable}
         />
       );
     }
     return (
       <CloudinaryListingPhoto
+        key={frame + ":" + mode + ":" + imageSrc}
         photo={photo}
         frame={frame}
         mode={mode}
@@ -211,6 +282,10 @@ export function ListingPhoto({
         unoptimized={unoptimized}
         hidden={hidden}
         imageSrc={imageSrc}
+        thumbnailSrc={hidden ? undefined : thumbnailSrc}
+        onPhotoLoad={onPhotoLoad}
+        onPhotoUnavailable={onPhotoUnavailable}
+        onThumbnailUnavailable={onThumbnailUnavailable}
       />
     );
   }

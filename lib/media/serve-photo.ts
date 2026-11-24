@@ -55,10 +55,12 @@ export function signedDeliveryForPhoto(input: {
   frame: ListingPhotoFrame;
   width: number;
   env?: NodeJS.ProcessEnv;
+  reusePublicRendition?: boolean;
 }) {
   const env = input.env ?? process.env;
   const storedPath = input.photo.imageKitFilePath;
   const mode = readMediaProviderMode(env);
+  const signatureOptions = { env, reusePublicRendition: input.reusePublicRendition };
   const managedReference = input.photo.publicId.startsWith("imagekit/") || storedPath?.startsWith("/iommarket-media/");
   if (managedReference) {
     if (!storedPath || !input.photo.imageKitFileId || !isManagedListingPath(storedPath) ||
@@ -70,7 +72,8 @@ export function signedDeliveryForPhoto(input: {
     return { kind: "redirect" as const, url: signedImageKitDeliveryUrl({
       relativePath: imageKitDeliveryRelativePath(storedPath, imageKitTransformForMode({
         mode: input.mode, frame: input.frame, width: input.width, photo: input.photo,
-      })), env,
+      })),
+      ...signatureOptions,
     }) };
   }
   if (storedPath && input.photo.imageKitFileId && mode !== "cloudinary") {
@@ -89,7 +92,7 @@ export function signedDeliveryForPhoto(input: {
         kind: "redirect" as const,
         url: signedImageKitDeliveryUrl({
           relativePath: imageKitDeliveryRelativePath(storedPath, transform),
-          env,
+          ...signatureOptions,
         }),
       };
     }
@@ -147,7 +150,7 @@ export function signedDeliveryForPhoto(input: {
     kind: "redirect" as const,
     url: signedImageKitDeliveryUrl({
       relativePath: imageKitDeliveryRelativePath(asset.destinationPath, transform),
-      env,
+      ...signatureOptions,
     }),
   };
 }

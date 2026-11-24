@@ -22,10 +22,10 @@ export function AdminRecordLink({
       prefetch={external ? false : undefined}
       target={external ? "_blank" : undefined}
       rel={external ? "noopener noreferrer" : undefined}
-      className={cn(adminRecordLinkClass, className)}
+      className={cn(adminRecordLinkClass, external && "relative", className)}
     >
       {children}
-      {external ? <span className="sr-only">. Opens in a new tab</span> : null}
+      {external ? <span className="sr-only left-0 top-0">. Opens in a new tab</span> : null}
     </Link>
   );
 }

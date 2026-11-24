@@ -224,7 +224,7 @@ export function SiteHeader({ previewSite = false }: { previewSite?: boolean }) {
       >
         <div className="mx-auto flex h-full max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
           {/* Logo */}
-          {isAdminArea ? <div id="admin-mobile-menu-trigger" className="flex shrink-0 items-center lg:hidden" /> : null}
+          {isAdminArea ? <div id="admin-mobile-menu-trigger" className="flex shrink-0 items-center xl:hidden" /> : null}
           <Link href="/" className={cn("shrink-0 items-center", isAdminArea ? "hidden lg:flex" : "flex")}>
             <Image
               src="/images/logo-itrader-hq.png"

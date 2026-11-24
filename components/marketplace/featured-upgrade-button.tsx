@@ -115,11 +115,12 @@ export function FeaturedUpgradeButton({
           disabled={checkoutUnavailable || uncertain}
           loading={isPending}
           aria-busy={isPending || undefined}
-          className="w-full bg-premium-gold-400 text-black hover:bg-premium-gold-500 hover:text-black sm:w-auto"
-          title="Upgrade to featured"
+          className="h-8 shrink-0 whitespace-nowrap px-2 bg-premium-gold-400 text-black hover:bg-premium-gold-500 hover:text-black sm:w-auto"
+          aria-label={`Feature for ${formatGbpFromPence(featuredUpgradePricePence)}`}
+          title={`Feature for ${formatGbpFromPence(featuredUpgradePricePence)}`}
         >
           <Star className="h-3.5 w-3.5" />
-          Feature for {formatGbpFromPence(featuredUpgradePricePence)}
+          Feature
         </Button>
         {pendingReview ? (
           <p className="text-xs text-text-secondary">{pendingCopy}</p>

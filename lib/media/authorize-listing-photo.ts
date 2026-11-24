@@ -41,13 +41,12 @@ const listingImageSelect = {
   },
 } as const;
 
-export const loadAuthorizedListingPhoto = cache(async (imageId: string): Promise<ListingPhotoSource | null> => {
+export const loadListingPhotoAccess = cache(async (imageId: string) => {
   const image = await db.listingImage.findUnique({
     where: { id: imageId },
     select: listingImageSelect,
   });
   if (!image) return null;
-  const viewer = await getCurrentUser();
   const sampleVisibility = await getSampleVisibility();
   const dealerAccess = await hasPublicListingSellerAccess(
     image.listing.dealerId,
@@ -55,33 +54,42 @@ export const loadAuthorizedListingPhoto = cache(async (imageId: string): Promise
     Boolean(image.listing.user.deletedAt),
     sampleVisibility,
   );
-  if (
-    blocksSignedListingDelivery({
+  const identity = {
+    status: image.listing.status,
+    previewPackId: image.listing.previewPackId,
+    dealerIsAdminPreview: image.listing.dealer?.isAdminPreview === true,
+    ownerAuthUserId: image.listing.user.authUserId,
+    ownerEmail: image.listing.user.email,
+  };
+  const canDeliver = (viewer: Awaited<ReturnType<typeof getCurrentUser>>) => {
+    return !blocksSignedListingDelivery({
+      ...identity,
       listingId: image.listing.id,
       authUserId: image.listing.user.authUserId,
       dealerId: image.listing.dealerId,
       isAdminPreview: image.listing.dealer?.isAdminPreview === true,
       sampleVisibility,
-      status: image.listing.status,
-      previewPackId: image.listing.previewPackId,
-      ownerEmail: image.listing.user.email,
       canView: canViewListing({
+        ...identity,
         dealerAccess,
-        status: image.listing.status,
         expiresAt: image.listing.expiresAt,
         listingUserId: image.listing.userId,
         viewer,
         previewPackEnabled: image.listing.previewPack?.enabled ?? false,
-        previewPackId: image.listing.previewPackId,
-        dealerIsAdminPreview: image.listing.dealer?.isAdminPreview === true,
-        ownerAuthUserId: image.listing.user.authUserId,
-        ownerEmail: image.listing.user.email,
       }),
-    })
-  ) {
-    return null;
-  }
-  return image;
+    });
+  };
+  return {
+    photo: image,
+    isPublic: !isPreviewPackListing(identity) && canDeliver(null),
+    authorize: async () => canDeliver(await getCurrentUser()) ? image : null,
+  };
+});
+
+export const loadAuthorizedListingPhoto = cache(async (imageId: string): Promise<ListingPhotoSource | null> => {
+  const access = await loadListingPhotoAccess(imageId);
+  if (!access) return null;
+  return access.isPublic ? access.photo : access.authorize();
 });
 
 export const loadAuthorizedRevisionPhoto = cache(async (imageId: string): Promise<ListingPhotoSource | null> => {

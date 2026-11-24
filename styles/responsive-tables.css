@@ -16,7 +16,15 @@
 }
 .responsive-table-frame :is(th, td) > * { max-width: 100%; }
 .responsive-table-frame .truncate { white-space: normal; overflow-wrap: anywhere; }
-.responsive-table-frame [data-column="actions"] { width: 6rem; }
+.responsive-table-frame [data-column="actions"] { width: 1%; text-align: right; }
+.responsive-table-frame :is([data-column="price"], [data-column="amount"], [data-column="created"], [data-column="expires"], [data-column="joined"], [data-column="date"]) {
+  white-space: nowrap;
+  overflow-wrap: normal;
+}
+.responsive-table-frame [data-column="actions"] > div { min-width: min-content; }
+[data-admin-table="member-listings"] td[data-column="actions"],
+[data-admin-table="dealer-inventory"] td[data-column="actions"] { min-width: 9.5rem; }
+
 
 /* Preserve short dates and labels; identities remain free to wrap. */
 .responsive-table-frame td.whitespace-nowrap { white-space: nowrap; }
@@ -29,6 +37,8 @@
   /* Keep header controls available for sorting on narrow screens. */
   .responsive-table-frame[data-ready] thead tr { display: flex; flex-wrap: wrap; gap: 4px 12px; padding: 8px; margin-bottom: 12px; }
   .responsive-table-frame[data-ready] th { width: auto; height: auto; background: transparent; padding: 0; }
+  .responsive-table-frame[data-ready] thead:not(:has(a, button, input)) { display: none; }
+  .responsive-table-frame[data-ready] tbody [data-column="actions"] > div { min-width: 0; align-items: flex-start; }
   .responsive-table-frame[data-ready] thead th:not(:has(a, button, input)) { display: none; }
   .responsive-table-frame[data-ready] tbody tr {
     display: block; margin-bottom: 12px; padding: 8px 0;
@@ -47,3 +57,83 @@
   .responsive-table-frame[data-ready] tfoot tr { display: flex; flex-wrap: wrap; }
 }
 
+
+.listing-table-title {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+.listing-table-thumbnail {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 48px;
+  height: 36px;
+  overflow: hidden;
+  border-radius: 4px;
+  background: var(--sem-bg-surface);
+}
+@container (max-width: 760px) {
+  .responsive-table-frame[data-ready] tbody tr:has(.listing-table-title) {
+    position: relative;
+    display: grid;
+    grid-template-columns: 160px minmax(0, 1fr);
+    grid-template-rows: auto auto 1fr auto;
+    gap: 8px 12px;
+    padding: 12px;
+    align-items: start;
+  }
+  .responsive-table-frame[data-ready] tr:has(.listing-table-title) > td {
+    min-width: 0;
+    width: auto;
+    padding: 0;
+  }
+  .listing-table-title { flex-direction: column; align-items: flex-start; gap: 7px; }
+  .listing-table-thumbnail { width: 160px; height: 120px; }
+  tr:has(.listing-table-title) [data-column="title"] { grid-area: 1 / 1 / 4 / 2; }
+  tr:has(.listing-table-title) [data-column="price"] { grid-area: 1 / 2; font-size: 1.15rem; font-weight: 700; }
+  tr:has(.listing-table-title) [data-column="category"] { grid-area: 2 / 2; }
+  tr:has(.listing-table-title) [data-column="region"] { grid-area: 3 / 2; }
+  tr:has(.listing-table-title) [data-column="status"] {
+    position: absolute; top: 18px; left: 18px; max-width: 148px;
+  }
+  tr:has(.listing-table-title) [data-column="status"] > span,
+  tr:has(.listing-table-title) [data-column="status"] details[open] {
+    border-radius: 10px; background: var(--sem-bg-surface);
+  }
+  tr:has(.listing-table-title) :is([data-column="created"], [data-column="expires"]) {
+    grid-area: 4 / 1; align-self: center; font-size: 0.75rem;
+  }
+  .responsive-table-frame[data-ready] tr:has(.listing-table-title) :is([data-column="created"], [data-column="expires"])::before {
+    display: inline; margin-right: 4px;
+  }
+  tr:has(.listing-table-title) [data-column="actions"] { grid-area: 4 / 1 / 5 / -1; justify-self: end; }
+  .responsive-table-frame[data-ready] tr:has(.listing-table-title) :is([data-column="title"], [data-column="price"], [data-column="status"], [data-column="actions"])::before {
+    display: none;
+  }
+  tr:has(.listing-table-title):has([data-column="actions"])::after {
+    content: ""; grid-area: 4 / 1 / 5 / -1; align-self: start;
+    margin-top: -4px; border-top: 1px solid var(--sem-border-default); pointer-events: none;
+  }
+}
+
+.responsive-table-frame tr:has(.listing-table-title) > td[data-column="price"] { color: #fff; }
+
+@container (max-width: 760px) {
+  .responsive-table-frame[data-ready] .listing-table-title > a::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    z-index: 1;
+    border-radius: 8px;
+  }
+  .responsive-table-frame[data-ready] .listing-table-title > a:focus-visible::after {
+    outline: 2px solid currentColor;
+    outline-offset: -2px;
+  }
+  .responsive-table-frame[data-ready] tr:has(.listing-table-title) [data-column="status"]:has(details) { z-index: 2; }
+  .responsive-table-frame[data-ready] tr:has(.listing-table-title) [data-column="actions"] :is(button, a) {
+    position: relative;
+    z-index: 2;
+  }
+}

@@ -31,10 +31,20 @@ export function ListingImageGallery({
   title,
   isSold,
 }: ListingImageGalleryProps) {
+  const [attempt, setAttempt] = React.useState(0);
+  return <GalleryAttempt key={attempt} images={images} title={title} isSold={isSold}
+    onRetry={() => setAttempt(value => value + 1)} />;
+}
+
+function GalleryAttempt({ images, title, isSold, onRetry }: ListingImageGalleryProps & { onRetry: () => void }) {
   const [activeIndex, setActiveIndex] = React.useState(0);
   const [isLightboxOpen, setIsLightboxOpen] = React.useState(false);
   const [prefersReducedMotion, setPrefersReducedMotion] = React.useState(false);
+  const [thumbnails, setThumbnails] = React.useState<Record<number, string>>({});
+  const [failedThumbnails, setFailedThumbnails] = React.useState<Record<number, boolean>>({});
+  const [failedPhotos, setFailedPhotos] = React.useState<Record<number, boolean>>({});
   const canNavigate = images.length > 1;
+  const unavailable = images.length > 0 && images.every((_, index) => failedPhotos[index] && !thumbnails[index]);
 
   React.useEffect(() => {
     if (typeof window.matchMedia !== "function") return;
@@ -51,23 +61,41 @@ export function ListingImageGallery({
     }
   }, [activeIndex, images.length]);
 
+  const available = React.useCallback((index: number) => !failedPhotos[index] || Boolean(thumbnails[index]), [failedPhotos, thumbnails]);
   const showImage = React.useCallback((index: number) => {
-    setActiveIndex(Math.min(Math.max(index, 0), images.length - 1));
-  }, [images.length]);
+    if (index >= 0 && index < images.length && available(index)) setActiveIndex(index);
+  }, [available, images.length]);
 
-  const showPrevious = React.useCallback(() => {
-    if (!canNavigate) return;
-    setActiveIndex((currentIndex) =>
-      currentIndex === 0 ? images.length - 1 : currentIndex - 1,
-    );
-  }, [canNavigate, images.length]);
+  const nextAvailable = React.useCallback((index: number, step: number) => {
+    for (let offset = 1; offset < images.length; offset++) {
+      const candidate = (index + step * offset + images.length) % images.length;
+      if (available(candidate)) return candidate;
+    }
+    return index;
+  }, [available, images.length]);
 
-  const showNext = React.useCallback(() => {
-    if (!canNavigate) return;
-    setActiveIndex((currentIndex) =>
-      currentIndex === images.length - 1 ? 0 : currentIndex + 1,
-    );
-  }, [canNavigate, images.length]);
+  React.useEffect(() => {
+    if (!available(activeIndex)) setActiveIndex(nextAvailable(activeIndex, 1));
+  }, [activeIndex, available, nextAvailable]);
+
+  const showPrevious = () => setActiveIndex(index => nextAvailable(index, -1));
+  const showNext = () => setActiveIndex(index => nextAvailable(index, 1));
+  const onThumbnailLoad = (index: number, src: string) => {
+    setThumbnails(current => current[index] === src ? current : { ...current, [index]: src });
+    setFailedThumbnails(current => current[index] ? { ...current, [index]: false } : current);
+  };
+  const onThumbnailUnavailable = (index: number) => {
+    setThumbnails(current => current[index] ? { ...current, [index]: "" } : current);
+    setFailedThumbnails(current => current[index] ? current : { ...current, [index]: true });
+  };
+  const setPhotoFailure = (index: number, failed: boolean) => {
+    setFailedPhotos(current => Boolean(current[index]) === failed ? current : { ...current, [index]: failed });
+  };
+  const recovery = {
+    thumbnails, onThumbnailUnavailable,
+    onPhotoLoad: (index: number) => setPhotoFailure(index, false),
+    onPhotoUnavailable: (index: number) => setPhotoFailure(index, true),
+  };
 
   function handleLightboxKeyDown(event: React.KeyboardEvent<HTMLDivElement>) {
     if (event.key === "ArrowLeft") {
@@ -88,11 +116,21 @@ export function ListingImageGallery({
     );
   }
 
+  if (unavailable) {
+    return (
+      <div className="flex min-h-40 flex-col items-center justify-center gap-3 rounded-lg border border-border p-6">
+        <p role="status">Photos temporarily unavailable</p>
+        <Button type="button" onClick={onRetry}>Try again</Button>
+      </div>
+    );
+  }
+
   return (
     <>
       <div className="grid gap-3">
         <div className="relative">
           <SwipeablePhotoStage
+            {...recovery}
             images={images}
             title={title}
             activeIndex={activeIndex}
@@ -157,7 +195,8 @@ export function ListingImageGallery({
                     "border transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-neon-blue-500 focus-visible:ring-offset-2 focus-visible:ring-offset-canvas",
                     isActive
                       ? "border-neon-blue-500 shadow-[0_0_0_1px_rgba(66,153,225,0.8)]"
-                      : "border-white/10 hover:border-white/35"
+                      : "border-white/10 hover:border-white/35",
+                    failedThumbnails[index] && "invisible",
                   )}
                   aria-label={`Show image ${index + 1} of ${images.length}`}
                   aria-current={isActive ? "true" : undefined}
@@ -168,6 +207,8 @@ export function ListingImageGallery({
                     alt={`${title} image ${index + 1}`}
                     fillContainer
                     sizes={LISTING_GALLERY_THUMB_SIZES}
+                    onPhotoLoad={src => onThumbnailLoad(index, src)}
+                    onPhotoUnavailable={() => onThumbnailUnavailable(index)}
                   />
                   <span className="absolute bottom-1.5 right-1.5 rounded bg-black/65 px-1.5 py-0.5 text-[10px] font-semibold text-white">
                     {index + 1}
@@ -193,6 +234,7 @@ export function ListingImageGallery({
           <div className="flex h-full flex-col">
             <div className="relative min-h-0 flex-1">
               <SwipeablePhotoStage
+                {...recovery}
                 images={images}
                 title={title}
                 activeIndex={activeIndex}
@@ -254,7 +296,8 @@ export function ListingImageGallery({
                         className={cn(
                           "relative h-16 w-28 shrink-0 overflow-hidden rounded-md border bg-graphite-900",
                           "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-neon-blue-500",
-                          isActive ? "border-neon-blue-500" : "border-white/15"
+                          isActive ? "border-neon-blue-500" : "border-white/15",
+                          failedThumbnails[index] && "invisible",
                         )}
                         aria-label={`Show image ${index + 1}`}
                         aria-current={isActive ? "true" : undefined}
@@ -265,6 +308,8 @@ export function ListingImageGallery({
                           alt={`${title} thumbnail ${index + 1}`}
                           fillContainer
                           sizes={LISTING_LIGHTBOX_THUMB_SIZES}
+                          onPhotoLoad={src => onThumbnailLoad(index, src)}
+                          onPhotoUnavailable={() => onThumbnailUnavailable(index)}
                         />
                       </button>
                     );
@@ -289,6 +334,10 @@ interface SwipeablePhotoStageProps {
   fullscreen?: boolean;
   prefersReducedMotion: boolean;
   testId: string;
+  thumbnails: Record<number, string>;
+  onThumbnailUnavailable: (index: number) => void;
+  onPhotoLoad: (index: number) => void;
+  onPhotoUnavailable: (index: number) => void;
 }
 
 function SwipeablePhotoStage({
@@ -301,6 +350,10 @@ function SwipeablePhotoStage({
   fullscreen = false,
   prefersReducedMotion,
   testId,
+  thumbnails,
+  onThumbnailUnavailable,
+  onPhotoLoad,
+  onPhotoUnavailable,
 }: SwipeablePhotoStageProps) {
   const [initialIndex] = React.useState(activeIndex);
   const [emblaRef, emblaApi] = useEmblaCarousel({
@@ -361,6 +414,10 @@ function SwipeablePhotoStage({
                 alt={index === activeIndex ? `${title} image ${index + 1}` : ""}
                 sizes={LISTING_LIGHTBOX_SIZES}
                 priority={index === 0}
+                thumbnailSrc={thumbnails[index]}
+                onThumbnailUnavailable={() => onThumbnailUnavailable(index)}
+                onPhotoLoad={() => onPhotoLoad(index)}
+                onPhotoUnavailable={() => onPhotoUnavailable(index)}
               />
             ) : (
               <button
@@ -376,6 +433,10 @@ function SwipeablePhotoStage({
                   alt={index === activeIndex ? title : ""}
                   fillContainer
                   priority={index === 0}
+                  thumbnailSrc={thumbnails[index]}
+                  onThumbnailUnavailable={() => onThumbnailUnavailable(index)}
+                  onPhotoLoad={() => onPhotoLoad(index)}
+                  onPhotoUnavailable={() => onPhotoUnavailable(index)}
                   sizes={LISTING_GALLERY_SIZES}
                   imageClassName={cn(
                     "transition duration-300 motion-reduce:transition-none group-hover:scale-[1.015] motion-reduce:group-hover:scale-100",

@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { NextRequest } from "next/server";
 
 vi.mock("@/lib/media/authorize-listing-photo", () => ({
-  loadAuthorizedListingPhoto: vi.fn(),
+  loadListingPhotoAccess: vi.fn(),
   loadAuthorizedRevisionPhoto: vi.fn(),
 }));
 
@@ -22,13 +22,14 @@ vi.mock("@/lib/media/serve-photo", () => ({
   signedDeliveryForPhoto: vi.fn(),
 }));
 
-import { loadAuthorizedListingPhoto, loadAuthorizedRevisionPhoto } from "@/lib/media/authorize-listing-photo";
+import { loadListingPhotoAccess, loadAuthorizedRevisionPhoto } from "@/lib/media/authorize-listing-photo";
 import { loadAuthorizedUploadPhoto } from "@/lib/media/authorize-upload-photo";
 import { signedDeliveryForPhoto } from "@/lib/media/serve-photo";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { GET } from "@/app/api/media/listing-photo/route";
 
-const authorize = vi.mocked(loadAuthorizedListingPhoto);
+const access = vi.mocked(loadListingPhotoAccess);
+const authorize = vi.fn();
 
 function request(width: string) {
   return new NextRequest(
@@ -38,6 +39,7 @@ function request(width: string) {
 
 describe("GET /api/media/listing-photo widths", () => {
   beforeEach(() => {
+    access.mockResolvedValue(null);
     authorize.mockReset();
     authorize.mockResolvedValue(null);
   });
@@ -47,13 +49,15 @@ describe("GET /api/media/listing-photo widths", () => {
       const response = await GET(request(width));
       expect(response.status).toBe(400);
     }
-    expect(authorize).not.toHaveBeenCalled();
+    expect(access).not.toHaveBeenCalled();
   });
 
   it("accepts a ladder width and still requires an authorized photo", async () => {
+    access.mockResolvedValue({ isPublic: false, authorize } as never);
     const response = await GET(request("1600"));
     expect(response.status).toBe(404);
-    expect(authorize).toHaveBeenCalledWith("img-1");
+    expect(access).toHaveBeenCalledWith("img-1");
+    expect(authorize).toHaveBeenCalled();
   });
 
   it("marks an application 429 without authorizing or redirecting the image", async () => {
@@ -71,7 +75,7 @@ describe("GET /api/media/listing-photo widths", () => {
 describe("media access during a rate-limit database outage", () => {
   beforeEach(() => {
     vi.mocked(checkRateLimit).mockResolvedValue({ allowed: false, remaining: 0, resetAt: Date.now() + 60_000, unavailable: true });
-    vi.mocked(loadAuthorizedListingPhoto).mockResolvedValue(null);
+    access.mockResolvedValue(null);
     vi.mocked(loadAuthorizedRevisionPhoto).mockResolvedValue(null);
     vi.mocked(loadAuthorizedUploadPhoto).mockResolvedValue(null);
     vi.mocked(signedDeliveryForPhoto).mockClear();
@@ -84,7 +88,7 @@ describe("media access during a rate-limit database outage", () => {
   });
 
   it("still serves an authorised image", async () => {
-    vi.mocked(loadAuthorizedListingPhoto).mockResolvedValue({ id: "img-1" } as never);
+    access.mockResolvedValue({ isPublic: false, authorize: async () => ({ id: "img-1" }) } as never);
     vi.mocked(signedDeliveryForPhoto).mockReturnValue({ kind: "imagekit", url: "https://ik.imagekit.io/example/photo.jpg" } as never);
     const response = await GET(request("1600"));
     expect(response.status).toBe(302);
@@ -92,4 +96,16 @@ describe("media access during a rate-limit database outage", () => {
     expect(response.headers.get("cache-control")).toBe("private, max-age=60");
   });
 
+  it("delivers a public rendition without consulting the limiter and rechecks access on the next request", async () => {
+    const limit = vi.mocked(checkRateLimit);
+    limit.mockClear();
+    access.mockResolvedValueOnce({ photo: { id: "img-1" }, isPublic: true, authorize } as never);
+    vi.mocked(signedDeliveryForPhoto).mockReturnValue({ kind: "redirect", url: "https://ik.imagekit.io/example/photo.jpg" });
+    const response = await GET(request("1600"));
+    expect(response.status).toBe(302);
+    expect(response.headers.get("cache-control")).toBe("private, no-cache");
+    expect(limit).not.toHaveBeenCalled();
+    expect(signedDeliveryForPhoto).toHaveBeenCalledWith(expect.objectContaining({ reusePublicRendition: true }));
+    expect((await GET(request("1600"))).status).toBe(404);
+  });
 });

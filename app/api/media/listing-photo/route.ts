@@ -1,6 +1,6 @@
 import { loadAuthorizedUploadPhoto } from "@/lib/media/authorize-upload-photo";
 import { NextRequest, NextResponse } from "next/server";
-import { loadAuthorizedListingPhoto, loadAuthorizedRevisionPhoto } from "@/lib/media/authorize-listing-photo";
+import { loadListingPhotoAccess, loadAuthorizedRevisionPhoto } from "@/lib/media/authorize-listing-photo";
 import { listingPhotoDeliveryQuerySchema } from "@/lib/media/listing-photo-query";
 import { signedDeliveryForPhoto } from "@/lib/media/serve-photo";
 import { checkMediaReadRateLimit } from "@/lib/media/read-rate-limit";
@@ -15,18 +15,7 @@ function clientKey(request: NextRequest) {
   return request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "local";
 }
 
-export async function GET(request: NextRequest) {
-  const parsed = listingPhotoDeliveryQuerySchema.safeParse({
-    imageId: request.nextUrl.searchParams.get("imageId"),
-    source: request.nextUrl.searchParams.get("source") ?? undefined,
-    mode: request.nextUrl.searchParams.get("mode"),
-    frame: request.nextUrl.searchParams.get("frame"),
-    w: request.nextUrl.searchParams.get("w"),
-  });
-  if (!parsed.success) {
-    return NextResponse.json({ error: "Invalid image request." }, { status: 400 });
-  }
-
+async function limitProtectedRead(request: NextRequest) {
   const rateResult = await checkMediaReadRateLimit(clientKey(request));
   const rateDenial = toRateLimitDenial(
     rateResult,
@@ -44,29 +33,47 @@ export async function GET(request: NextRequest) {
     }
     return NextResponse.json({ error: rateDenial.message }, { status: rateDenial.status, headers });
   }
+  return null;
+}
 
-  const photo = parsed.data.source === "revision"
-    ? await loadAuthorizedRevisionPhoto(parsed.data.imageId)
-    : parsed.data.source === "upload"
-      ? await loadAuthorizedUploadPhoto(parsed.data.imageId)
-      : await loadAuthorizedListingPhoto(parsed.data.imageId);
+function photoUnavailable() {
+  return NextResponse.json({ error: "Image not available." }, { status: 404, headers: { "Cache-Control": "no-store" } });
+}
+
+export async function GET(request: NextRequest) {
+  const parsed = listingPhotoDeliveryQuerySchema.safeParse({
+    imageId: request.nextUrl.searchParams.get("imageId"),
+    source: request.nextUrl.searchParams.get("source") ?? undefined,
+    mode: request.nextUrl.searchParams.get("mode"),
+    frame: request.nextUrl.searchParams.get("frame"),
+    w: request.nextUrl.searchParams.get("w"),
+  });
+  if (!parsed.success) {
+    return NextResponse.json({ error: "Invalid image request." }, { status: 400 });
+  }
+
+  const { imageId, source, mode, frame, w } = parsed.data;
+  const access = source === "listing" ? await loadListingPhotoAccess(imageId) : null;
+  if (!access?.isPublic) {
+    const denial = await limitProtectedRead(request);
+    if (denial) return denial;
+  }
+  const photo = access?.isPublic ? access.photo
+    : source === "revision" ? await loadAuthorizedRevisionPhoto(imageId)
+    : source === "upload" ? await loadAuthorizedUploadPhoto(imageId)
+    : await access?.authorize();
   if (!photo) {
-    return NextResponse.json({ error: "Image not available." }, { status: 404 });
+    return photoUnavailable();
   }
 
   const delivery = signedDeliveryForPhoto({
-    photo,
-    mode: parsed.data.mode,
-    frame: parsed.data.frame,
-    width: parsed.data.w,
+    photo, mode, frame, width: w, reusePublicRendition: access?.isPublic,
   });
-  if (delivery.kind === "unresolved") {
-    const unresolved = new URL("/media-unresolved.svg", request.url);
-    unresolved.searchParams.set("reason", "unmapped");
-    return NextResponse.redirect(unresolved, { status: 302, headers: { "Cache-Control": "private, max-age=60" } });
-  }
+  if (delivery.kind === "unresolved") return photoUnavailable();
   return NextResponse.redirect(delivery.url, {
     status: 302,
-    headers: { "Cache-Control": "private, max-age=60" },
+    // The CDN may reuse the rendition, but every new authorization must check
+    // moderation, visibility and seller access against the current listing.
+    headers: { "Cache-Control": access?.isPublic ? "private, no-cache" : "private, max-age=60" },
   });
 }

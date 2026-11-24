@@ -5,6 +5,7 @@ import {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
   type ReactNode,
 } from "react";
@@ -29,6 +30,7 @@ import {
 interface ColumnVisibilityContextValue {
   columns: readonly AdminColumn[];
   hidden: readonly string[];
+  cards: boolean;
   toggle: (columnId: string) => void;
   reset: () => void;
 }
@@ -65,6 +67,21 @@ function removeStoredHidden(tableId: string) {
   }
 }
 
+function textLineCount(cell: HTMLElement) {
+  const nodes = document.createTreeWalker(cell, NodeFilter.SHOW_TEXT);
+  const range = document.createRange();
+  if (typeof range.getClientRects !== "function") return 0;
+  const lines = new Set<number>();
+  while (nodes.nextNode()) {
+    if (!nodes.currentNode.textContent?.trim()) continue;
+    range.selectNodeContents(nodes.currentNode);
+    for (const rect of Array.from(range.getClientRects())) {
+      if (rect.width && rect.height) lines.add(Math.round(rect.bottom));
+    }
+  }
+  return lines.size;
+}
+
 export function AdminColumnVisibility({
   tableId,
   columns,
@@ -74,35 +91,107 @@ export function AdminColumnVisibility({
   columns: readonly AdminColumn[];
   children: ReactNode;
 }) {
+  const frame = useRef<HTMLDivElement>(null);
+  const [compact, setCompact] = useState(false);
+  const [cards, setCards] = useState(false);
+  const [autoHidden, setAutoHidden] = useState<string[]>([]);
+  const [keepVisible, setKeepVisible] = useState<string[]>([]);
+  const preferenceKey = compact ? `${tableId}-compact` : tableId;
+  const defaults = columns;
   const [hidden, setHidden] = useState(() => defaultHiddenColumnIds(columns));
+  useEffect(() => {
+    setHidden(readStoredHidden(preferenceKey, defaults));
+  }, [preferenceKey, defaults]);
 
   useEffect(() => {
-    setHidden(readStoredHidden(tableId, columns));
-  }, [tableId, columns]);
+    setKeepVisible(readStoredHidden(preferenceKey + "-shown", columns.map(column => ({ ...column, defaultVisible: true }))));
+  }, [columns, preferenceKey]);
+
+  useEffect(() => {
+    const root = frame.current;
+    const container = root?.querySelector<HTMLElement>(".responsive-table-frame");
+    if (!root || !container || typeof ResizeObserver === "undefined") return;
+    let animation = 0;
+    const fit = () => {
+      const table = container.querySelector("table");
+      if (!table) return;
+      const cardLayout = getComputedStyle(table).display === "block";
+      setCards(cardLayout);
+      setCompact(container.clientWidth < 980);
+      const removed: string[] = [];
+      // Restore the full candidate layout first so growing the frame restores columns.
+      root.dataset.fitHidden = "";
+      if (!cardLayout) {
+        const candidates = ["updated", "created", "joined", "expires", "phone", "reports", "region", "category"]
+          .filter(id => !hidden.includes(id) && !keepVisible.includes(id) && columns.some(c => c.id === id && !c.pinned));
+        while (candidates.length) {
+          let worst = -1;
+          let mostLines = 2;
+          candidates.forEach((id, index) => {
+            const cells = table.querySelectorAll<HTMLElement>(`tbody [data-column="${id}"]`);
+            for (const cell of Array.from(cells)) {
+              const lines = textLineCount(cell);
+              if (lines > mostLines) {
+                mostLines = lines;
+                worst = index;
+              }
+            }
+          });
+          if (worst < 0) break;
+          removed.push(...candidates.splice(worst, 1));
+          // The next column is measured after the browser redistributes this one's width.
+          root.dataset.fitHidden = removed.join(" ");
+        }
+      }
+      setAutoHidden(previous => previous.join(" ") === removed.join(" ") ? previous : removed);
+    };
+    const schedule = () => { cancelAnimationFrame(animation); animation = requestAnimationFrame(fit); };
+    const resize = new ResizeObserver(schedule);
+    resize.observe(container);
+    const changes = new MutationObserver(schedule);
+    changes.observe(container, { subtree: true, childList: true, characterData: true, attributes: true, attributeFilter: ["data-ready"] });
+    document.fonts?.addEventListener("loadingdone", schedule);
+    schedule();
+    return () => {
+      resize.disconnect();
+      changes.disconnect();
+      document.fonts?.removeEventListener("loadingdone", schedule);
+      cancelAnimationFrame(animation);
+    };
+  }, [columns, hidden, keepVisible, children]);
 
   const value = useMemo<ColumnVisibilityContextValue>(() => ({
     columns,
-    hidden,
+    hidden: [...hidden, ...autoHidden],
+    cards,
     toggle: (columnId: string) => {
       const column = columns.find((item) => item.id === columnId);
       if (!column || column.pinned) return;
+      const show = hidden.includes(columnId) || autoHidden.includes(columnId);
+      const shown = keepVisible.filter(id => id !== columnId);
+      if (show) shown.push(columnId);
+      setKeepVisible(shown);
+      writeStoredHidden(preferenceKey + "-shown", shown);
       setHidden((current) => {
-        const next = current.includes(columnId)
+        const next = show
           ? current.filter((id) => id !== columnId)
           : [...current, columnId];
-        writeStoredHidden(tableId, next);
+        writeStoredHidden(preferenceKey, next);
         return next;
       });
     },
     reset: () => {
-      removeStoredHidden(tableId);
-      setHidden(defaultHiddenColumnIds(columns));
+      removeStoredHidden(preferenceKey);
+      removeStoredHidden(preferenceKey + "-shown");
+      setKeepVisible([]);
+      setHidden(defaultHiddenColumnIds(defaults));
     },
-  }), [columns, hidden, tableId]);
+  }), [columns, hidden, preferenceKey, defaults, autoHidden, cards, keepVisible]);
 
   return (
     <ColumnVisibilityContext.Provider value={value}>
       <div
+        ref={frame}
         data-admin-table={tableId}
         data-hidden={hidden.length > 0 ? hidden.join(" ") : undefined}
       >
@@ -119,6 +208,7 @@ export function AdminColumnMenu() {
     throw new Error("AdminColumnMenu must be used within AdminColumnVisibility.");
   }
 
+  if (context.cards) return null;
   const optionalColumns = context.columns.filter((column) => !column.pinned);
 
   return (

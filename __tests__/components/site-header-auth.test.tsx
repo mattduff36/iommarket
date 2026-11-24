@@ -126,7 +126,7 @@ describe("SiteHeader auth initialization", () => {
     const { container } = render(<SiteHeader />);
     const host = container.querySelector("#admin-mobile-menu-trigger");
     expect(host).not.toBeNull();
-    expect(host?.className).toContain("lg:hidden");
+    expect(host?.className).toContain("xl:hidden");
   });
 
   it("keeps public pages free of the admin menu trigger host", () => {

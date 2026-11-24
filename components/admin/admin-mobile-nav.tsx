@@ -21,7 +21,7 @@ export function AdminMobileNav({ items: navigation = ADMIN_NAV.filter((item) => 
 
   useEffect(() => {
     setTriggerHost(document.getElementById("admin-mobile-menu-trigger"));
-    const desktop = window.matchMedia("(min-width: 1024px)");
+    const desktop = window.matchMedia("(min-width: 1280px)");
     const breakpoint = () => { if (desktop.matches) setOpen(false); };
     desktop.addEventListener("change", breakpoint);
     return () => desktop.removeEventListener("change", breakpoint);

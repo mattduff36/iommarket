@@ -1,4 +1,5 @@
 import { requireRole } from "@/lib/auth";
+import { isRateLimitExempt } from "@/lib/rate-limit-exemptions";
 import { acceptedAuthHttpStatus } from "@/lib/policy/gate";
 import { desktopAccountEnabled } from "@/lib/dealer-stock-sync/desktop-config";
 import { createWorkerControlDependencies, readWorkerDashboard } from "@/lib/dealer-stock-sync/worker-control";
@@ -14,7 +15,7 @@ export async function GET(request: Request) {
     const admin = await requireRole("ADMIN");
     if (!desktopAccountEnabled(process.env, admin.id)) return Response.json({ error: "forbidden" }, { status: 403, headers });
     const deps = createWorkerControlDependencies();
-    if (!await deps.desktop.store.consumeRate(`worker-presence-stream:${admin.id}`, 20, 60)) {
+    if (!await isRateLimitExempt() && !await deps.desktop.store.consumeRate(`worker-presence-stream:${admin.id}`, 20, 60)) {
       return Response.json({ error: "rate_limited" }, { status: 429, headers: { ...headers, "Retry-After": "60" } });
     }
     let timer: ReturnType<typeof setTimeout> | undefined;

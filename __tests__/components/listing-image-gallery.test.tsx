@@ -90,6 +90,52 @@ const images = [
 ];
 
 describe("ListingImageGallery", () => {
+  it("keeps a decoded thumbnail when the large photo fails twice", () => {
+    vi.stubEnv("NEXT_PUBLIC_MEDIA_PROVIDER", "imagekit");
+    try {
+      render(<ListingImageGallery images={images} title="Test Volvo" isSold={false} />);
+      const thumb = screen.getByRole("button", { name: "Show image 1 of 3" }).querySelector("img")!;
+      Object.defineProperty(thumb, "naturalWidth", { value: 160 });
+      fireEvent.load(thumb);
+      const data = screen.getByTestId("listing-gallery-stage");
+      const primary = data.querySelector('img[fetchpriority="high"]')!;
+      fireEvent.error(primary);
+      fireEvent.error(primary);
+      expect(data.querySelector('[data-photo-fallback="thumbnail"]')).toHaveAttribute("src", thumb.src);
+      expect(screen.getByText("1 / 3")).toBeVisible();
+    } finally {
+      vi.unstubAllEnvs();
+    }
+  });
+
+  it("advances to another photo when no thumbnail can replace the main photo", () => {
+    vi.stubEnv("NEXT_PUBLIC_MEDIA_PROVIDER", "imagekit");
+    try {
+      render(<ListingImageGallery images={images} title="Test Volvo" isSold={false} />);
+      const primary = screen.getByTestId("listing-gallery-stage").querySelector('img[fetchpriority="high"]')!;
+      fireEvent.error(primary);
+      fireEvent.error(primary);
+      expect(screen.getByText("2 / 3")).toBeVisible();
+    } finally {
+      vi.unstubAllEnvs();
+    }
+  });
+
+  it("offers a fresh attempt when the only photo cannot be loaded", () => {
+    vi.stubEnv("NEXT_PUBLIC_MEDIA_PROVIDER", "imagekit");
+    try {
+      render(<ListingImageGallery images={images.slice(0, 1)} title="Test Volvo" isSold={false} />);
+      const primary = screen.getByRole("img", { name: "Test Volvo" });
+      fireEvent.error(primary);
+      fireEvent.error(primary);
+      expect(screen.getByRole("status")).toHaveTextContent("Photos temporarily unavailable");
+      fireEvent.click(screen.getByRole("button", { name: "Try again" }));
+      expect(screen.getByRole("img", { name: "Test Volvo" })).not.toBe(primary);
+    } finally {
+      vi.unstubAllEnvs();
+    }
+  });
+
   it("shows all thumbnails and swaps the main image when a thumbnail is clicked", () => {
     render(<ListingImageGallery images={images} title="Test Volvo" isSold={false} />);
 

@@ -1,3 +1,4 @@
+import { LISTING_STATUS_VARIANT } from "@/lib/listings/status-variant";
 export const dynamic = "force-dynamic";
 
 import type { Metadata } from "next";
@@ -48,17 +49,6 @@ import { getSampleVisibility } from "@/lib/listings/sample-visibility";
 
 export const metadata: Metadata = { title: "Moderate Listings" };
 
-const STATUS_VARIANT: Record<string, "neutral" | "warning" | "success" | "error" | "info" | "premium"> = {
-  DRAFT: "neutral",
-  PENDING: "warning",
-  APPROVED: "info",
-  LIVE: "success",
-  EXPIRED: "neutral",
-  TAKEN_DOWN: "error",
-  REJECTED: "error",
-  SOLD: "premium",
-  ADMIN_PREVIEW: "info",
-};
 
 interface ListingReviewLinkProps {
   href: string;
@@ -290,7 +280,7 @@ export default async function AdminListingsPage({
                   £{(listing.price / 100).toLocaleString("en-GB")}
                 </ReviewCell>
                 <ReviewCell column="status" href={reviewHref} className={adminNumericCellClass}>
-                  <Badge variant={STATUS_VARIANT[listing.status] ?? "neutral"}>
+                  <Badge variant={LISTING_STATUS_VARIANT[listing.status] ?? "neutral"}>
                     {listing.status}
                   </Badge>
                   {listing.revisions.length > 0 ? (

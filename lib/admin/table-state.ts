@@ -150,7 +150,7 @@ export function columnHideCss(tableId: string, columns: readonly AdminColumn[]) 
     .filter((column) => COLUMN_ID_PATTERN.test(column.id))
     .map(
       (column) =>
-        `[data-admin-table="${tableId}"][data-hidden~="${column.id}"] [data-column="${column.id}"]{display:none}`,
+        `[data-admin-table="${tableId}"]:is([data-hidden~="${column.id}"],[data-fit-hidden~="${column.id}"]) [data-column="${column.id}"]{display:none!important}`,
     )
     .join("");
 }

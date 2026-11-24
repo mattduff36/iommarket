@@ -76,9 +76,9 @@
   },
   "family_counts": {
     "public-sink": 1223,
-    "raw-message": 169,
+    "raw-message": 168,
     "fragment": 588,
-    "static-literal": 304,
+    "static-literal": 305,
     "thrown": 891,
     "monitoring": 80,
     "rate-limit": 13,
@@ -205,18 +205,18 @@
       "classification": "displayed"
     },
     {
+      "id": "duplicate:exact-source-repeat:deferred-c:static-literal",
+      "count": 42,
+      "example": "actions/admin/database-sync.ts:77",
+      "rule_id": "exact-source-repeat",
+      "classification": "duplicate"
+    },
+    {
       "id": "displayed:ast-throw-forwarded:deferred-c:raw-message",
       "count": 41,
       "example": "actions/dealer-reviews.ts:429",
       "rule_id": "ast-throw-forwarded",
       "classification": "displayed"
-    },
-    {
-      "id": "duplicate:exact-source-repeat:deferred-c:static-literal",
-      "count": 41,
-      "example": "actions/admin/database-sync.ts:77",
-      "rule_id": "exact-source-repeat",
-      "classification": "duplicate"
     },
     {
       "id": "internal-only:ast-no-public-sink:deferred-c:field-errors",
@@ -304,7 +304,7 @@
     },
     {
       "id": "duplicate:exact-source-repeat:deferred-c:raw-message",
-      "count": 22,
+      "count": 21,
       "example": "actions/dealer-reviews.ts:347",
       "rule_id": "exact-source-repeat",
       "classification": "duplicate"
