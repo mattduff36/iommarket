@@ -155,7 +155,7 @@ describe("listing photo responsive delivery", () => {
     expect(document.querySelector('link[rel="preload"][as="image"]')).toBeNull();
   });
 
-  it("shows a local placeholder when a protected image fails and resets for the next photo", () => {
+  it("retries a protected image once, shows an unavailable state, and resets for the next photo", () => {
     process.env.NEXT_PUBLIC_MEDIA_PROVIDER = "imagekit";
     const view = (photo: ListingPhotoSource) => (
       <ListingPhoto photo={photo} frame="card" alt="Car" sizes={LISTING_CARD_SIZES} />
@@ -165,8 +165,11 @@ describe("listing photo responsive delivery", () => {
     expectProtectedCandidates(image);
 
     fireEvent.error(image);
-    expect(image.getAttribute("src")).toBe("/images/placeholder-listing.png");
+    expect(image.getAttribute("src")).toContain("retry=1");
     expect(image.hasAttribute("srcset")).toBe(false);
+    fireEvent.error(image);
+    expect(screen.queryByRole("img", { name: "Car" })).toBeNull();
+    expect(screen.getByText("Photo temporarily unavailable")).toBeTruthy();
 
     rerender(view(portrait));
     expectProtectedCandidates(screen.getByRole("img", { name: "Car" }));

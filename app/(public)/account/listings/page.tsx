@@ -229,7 +229,7 @@ export default async function AccountListingsPage({ searchParams }: Props) {
             {listings.map((listing) => (
               <TableRow key={listing.id}>
                 <TableCell data-column="title" className="font-medium max-w-[24rem] break-words">
-                  <ListingTableTitle image={listing.images?.[0]}>{listing.title}</ListingTableTitle>
+                  <ListingTableTitle listingId={listing.id} image={listing.images?.[0]}>{listing.title}</ListingTableTitle>
                 </TableCell>
                 <TableCell data-column="category">{listing.category.name}</TableCell>
                 <TableCell data-column="region">{listing.region.name}</TableCell>

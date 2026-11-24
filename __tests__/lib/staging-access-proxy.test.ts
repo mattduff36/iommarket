@@ -1,15 +1,19 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { NextRequest } from "next/server";
 import { STAGING_ORIGIN } from "@/lib/deployment/staging-origin";
+import { STAGING_RATE_LIMIT_HEADER, verifyStagingRateLimitProof } from "@/lib/deployment/staging-rate-limit";
 import { presentHostedCheckoutUrl } from "@/lib/payments/staging-return-routing";
+import { checkRateLimit } from "@/lib/rate-limit";
 
-const { createClientMock, getUserMock, getSessionMock, findUniqueMock } = vi.hoisted(() => ({
+const { createClientMock, getUserMock, getSessionMock, findUniqueMock, requestHeaders } = vi.hoisted(() => ({
   createClientMock: vi.fn(),
   getUserMock: vi.fn(),
   getSessionMock: vi.fn(),
   findUniqueMock: vi.fn(),
+  requestHeaders: vi.fn(),
 }));
 
+vi.mock("next/headers", () => ({ headers: requestHeaders }));
 vi.mock("@supabase/ssr", () => ({ createServerClient: createClientMock }));
 vi.mock("@/lib/db", () => ({ db: { user: { findUnique: findUniqueMock } } }));
 
@@ -20,6 +24,7 @@ const ENV_KEYS = [
   "NODE_ENV", "VERCEL_ENV", "ITRADER_DEPLOYMENT_ROLE", "NEXT_PUBLIC_APP_URL",
   "NEXT_PUBLIC_SUPABASE_URL", "NEXT_PUBLIC_SUPABASE_ANON_KEY", "POSTGRES_URL",
   "POSTGRES_URL_NON_POOLING", "DATABASE_URL", "RIPPLE_STAGING_RELAY_SECRET", "RIPPLE_CLIENT_ID",
+  "SUPABASE_SERVICE_ROLE_KEY",
 ] as const;
 const originalEnv = new Map(ENV_KEYS.map((key) => [key, process.env[key]]));
 
@@ -39,6 +44,7 @@ function configureStaging() {
   process.env.NEXT_PUBLIC_APP_URL = "https://itrader.dev";
   process.env.NEXT_PUBLIC_SUPABASE_URL = "https://syneonzucehwlghqmfbg.supabase.co";
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY = "test-anon-key";
+  process.env.SUPABASE_SERVICE_ROLE_KEY = "test-only-service-key";
   process.env.POSTGRES_URL = "postgresql://postgres@db.syneonzucehwlghqmfbg.supabase.co:5432/postgres";
   delete process.env.POSTGRES_URL_NON_POOLING;
   delete process.env.DATABASE_URL;
@@ -49,6 +55,7 @@ describe("staging access proxy", () => {
     configureStaging();
     getUserMock.mockReset().mockResolvedValue({ data: { user: null } });
     getSessionMock.mockReset().mockResolvedValue({ data: { session: null } });
+    requestHeaders.mockReset().mockResolvedValue(new Headers());
     findUniqueMock.mockReset().mockResolvedValue(null);
     createClientMock.mockReset().mockImplementation(() => ({
       auth: { getUser: getUserMock, getSession: getSessionMock },
@@ -99,8 +106,19 @@ describe("staging access proxy", () => {
       role, email: email.toUpperCase(), disabledAt: null, deletedAt: null,
     });
 
-    const response = await proxy(new NextRequest("https://itrader.dev/account"));
+    const cookie = "sb-auth=test-session";
+    const response = await proxy(new NextRequest("https://itrader.dev/account", { headers: { cookie, [STAGING_RATE_LIMIT_HEADER]: "untrusted" } }));
     expect(response.headers.get("x-middleware-next")).toBe("1");
+    const proof = response.headers.get(`x-middleware-request-${STAGING_RATE_LIMIT_HEADER}`);
+    expect(verifyStagingRateLimitProof(proof, cookie)).toBe(true);
+    expect(verifyStagingRateLimitProof(proof, "sb-auth=different-session")).toBe(false);
+    expect(verifyStagingRateLimitProof(proof, cookie, { ...process.env, VERCEL_ENV: "production" })).toBe(false);
+    expect(response.headers.get(STAGING_RATE_LIMIT_HEADER)).toBeNull();
+    const env = { ...process.env, UPSTASH_REDIS_REST_URL: undefined, UPSTASH_REDIS_REST_TOKEN: undefined };
+    requestHeaders.mockResolvedValue(new Headers({ cookie, [STAGING_RATE_LIMIT_HEADER]: proof! }));
+    expect(await checkRateLimit("test", { maxRequests: 1 }, { env })).toMatchObject({ allowed: true, unavailable: false });
+    requestHeaders.mockResolvedValue(new Headers({ cookie, [STAGING_RATE_LIMIT_HEADER]: "untrusted" }));
+    expect(await checkRateLimit("test", { maxRequests: 1 }, { env })).toMatchObject({ allowed: false, unavailable: true });
     expect(findUniqueMock).toHaveBeenCalledWith(expect.objectContaining({
       where: { authUserId: `auth-${email}` },
       select: { role: true, email: true, disabledAt: true, deletedAt: true },
@@ -138,11 +156,12 @@ describe("staging access proxy", () => {
   });
 
   it("keeps the exact auth entry page reachable while requiring the admin gate for action POSTs", async () => {
-    const page = await proxy(new NextRequest("https://itrader.dev/staging-access"));
+    const page = await proxy(new NextRequest("https://itrader.dev/staging-access", { headers: { [STAGING_RATE_LIMIT_HEADER]: "untrusted" } }));
     const action = await proxy(new NextRequest("https://itrader.dev/staging-access", {
       method: "POST", headers: { "next-action": "action-id" },
     }));
     expect(page.headers.get("x-middleware-next")).toBe("1");
+    expect(page.headers.get(`x-middleware-request-${STAGING_RATE_LIMIT_HEADER}`)).toBeNull();
     expect(action.status).toBe(401);
   });
 

@@ -7,6 +7,7 @@ import {
   hasStagingAccess, isStagingEntryRequest, isStagingMachineRequest, requiresStagingAdmin,
 } from "@/lib/deployment/staging-access-policy";
 import { isOnboardingSessionStale, readOnboardingSessionInvalidBefore } from "@/lib/dealers/onboarding/session-cutoff";
+import { createStagingRateLimitProof, STAGING_RATE_LIMIT_HEADER } from "@/lib/deployment/staging-rate-limit";
 
 function stagingAccessLocation(request: NextRequest): URL {
   const location = new URL("/staging-access", request.url);
@@ -31,9 +32,11 @@ export async function stagingAccessResponse(request: NextRequest): Promise<NextR
   if (!isStagingDeployment() || !url || !key) {
     return privateResponse(NextResponse.json({ error: "Staging access is not configured." }, { status: 503 }));
   }
-  if (isStagingEntryRequest(path, request.method, action)) return privateResponse(NextResponse.next());
-  if (isStagingMachineRequest(path, request.method, action)) return privateResponse(NextResponse.next());
-  const response = NextResponse.next({ request: { headers: request.headers } });
+  const forwarded = new Headers(request.headers);
+  forwarded.delete(STAGING_RATE_LIMIT_HEADER);
+  const response = NextResponse.next({ request: { headers: forwarded } });
+  if (isStagingEntryRequest(path, request.method, action)) return privateResponse(response);
+  if (isStagingMachineRequest(path, request.method, action)) return privateResponse(response);
   try {
     const supabase = createServerClient(url, key, {
       cookies: {
@@ -56,7 +59,14 @@ export async function stagingAccessResponse(request: NextRequest): Promise<NextR
     if (hasStagingAccess(account ? {
       ...account,
       verifiedAuthEmail: user?.email_confirmed_at ? user.email ?? null : null,
-    } : null)) return privateResponse(response);
+    } : null)) {
+      const proof = createStagingRateLimitProof(forwarded.get("cookie") ?? "");
+      if (!proof) return privateResponse(response);
+      forwarded.set(STAGING_RATE_LIMIT_HEADER, proof);
+      const admitted = NextResponse.next({ request: { headers: forwarded } });
+      response.cookies.getAll().forEach(cookie => admitted.cookies.set(cookie));
+      return privateResponse(admitted);
+    }
     const denied = path.startsWith("/api/") || action || !["GET", "HEAD"].includes(request.method)
       ? NextResponse.json({ error: "Administrator or approved test-account sign-in required." }, { status: user ? 403 : 401 })
       : NextResponse.redirect(stagingAccessLocation(request));

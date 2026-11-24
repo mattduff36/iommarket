@@ -118,3 +118,22 @@
 }
 
 .responsive-table-frame tr:has(.listing-table-title) > td[data-column="price"] { color: #fff; }
+
+@container (max-width: 760px) {
+  .responsive-table-frame[data-ready] .listing-table-title > a::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    z-index: 1;
+    border-radius: 8px;
+  }
+  .responsive-table-frame[data-ready] .listing-table-title > a:focus-visible::after {
+    outline: 2px solid currentColor;
+    outline-offset: -2px;
+  }
+  .responsive-table-frame[data-ready] tr:has(.listing-table-title) [data-column="status"]:has(details) { z-index: 2; }
+  .responsive-table-frame[data-ready] tr:has(.listing-table-title) [data-column="actions"] :is(button, a) {
+    position: relative;
+    z-index: 2;
+  }
+}

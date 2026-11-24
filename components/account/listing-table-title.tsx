@@ -1,11 +1,12 @@
-import type { ReactNode } from "react";
+import Link from "@/components/navigation/link";
 import { ImageIcon } from "lucide-react";
 import { ListingPhoto } from "@/components/marketplace/listing-photo";
 import { toListingPhotoSource } from "@/lib/images/photo";
 
-export function ListingTableTitle({ image, children }: {
+export function ListingTableTitle({ listingId, image, children }: {
   image: Parameters<typeof toListingPhotoSource>[0];
-  children: ReactNode;
+  listingId: string;
+  children: string;
 }) {
   const photo = toListingPhotoSource(image);
   return (
@@ -15,7 +16,9 @@ export function ListingTableTitle({ image, children }: {
           <ListingPhoto photo={photo} frame="thumb" alt="" sizes="(max-width: 820px) 160px, 48px" fillContainer />
         ) : <ImageIcon aria-hidden="true" className="size-4 text-text-tertiary" />}
       </div>
-      <span className="min-w-0">{children}</span>
+      <Link href={`/listings/${listingId}`} className="min-w-0 hover:underline focus-visible:underline">
+        {children}
+      </Link>
     </div>
   );
 }

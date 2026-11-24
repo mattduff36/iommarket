@@ -13,7 +13,7 @@ vi.mock("@/lib/media/imagekit-api", () => ({ signedImageKitDeliveryUrl: vi.fn() 
 vi.mock("@/lib/media/imagekit-transforms", () => ({ imageKitDeliveryRelativePath: vi.fn(), imageKitFillTransform: vi.fn() }));
 vi.mock("@/lib/media/dealer-logo-delivery", () => ({ dealerLogoDeliveryUrl: vi.fn() }));
 vi.mock("@/lib/media/config", () => ({ readMediaProviderMode: vi.fn() }));
-vi.mock("@/lib/media/authorize-listing-photo", () => ({ loadAuthorizedListingPhoto: mocks.authorize, loadAuthorizedRevisionPhoto: mocks.authorize }));
+vi.mock("@/lib/media/authorize-listing-photo", () => ({ loadListingPhotoAccess: vi.fn(async () => null), loadAuthorizedRevisionPhoto: mocks.authorize }));
 vi.mock("@/lib/media/authorize-upload-photo", () => ({ loadAuthorizedUploadPhoto: mocks.authorize }));
 vi.mock("@/lib/media/serve-photo", () => ({ signedDeliveryForPhoto: vi.fn() }));
 import { GET as listing } from "@/app/api/media/listing-photo/route";

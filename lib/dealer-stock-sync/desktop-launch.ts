@@ -1,6 +1,7 @@
 import { createHash, randomBytes, randomUUID } from "node:crypto";
 import { z } from "zod";
 import { db } from "@/lib/db";
+import { isStagingRateLimitExempt } from "@/lib/deployment/staging-rate-limit";
 import { browserOriginAllowed, resolveDesktopGate, SESSION_TTL_SECONDS } from "./desktop-config";
 import { handleDesktopPost, liveDesktopDependencies, type DesktopAccount, type DesktopDependencies } from "./desktop-service";
 import { createLaunchStore, launchJobIds, LAUNCH_TTL_SECONDS, type DesktopLaunchStore, type LaunchRecord } from "./desktop-launch-store";
@@ -47,7 +48,7 @@ export async function mintDesktopLaunch(deps: LaunchDependencies, input: {
     const gate = resolved.gate;
     if (!browserOriginAllowed(input.origin, input.host, input.forwardedHost, gate.origin) ||
       !allowed(await deps.desktop.users.findById(input.adminId), gate.allowlist)) return denied;
-    if (!await deps.desktop.store.consumeRate(`launch-mint:${input.adminId}`, 10, 60)) return denied;
+    if (!await isStagingRateLimitExempt(deps.desktop.env) && !await deps.desktop.store.consumeRate(`launch-mint:${input.adminId}`, 10, 60)) return denied;
     const jobIds = parsed.data.jobIds ?? [];
     if (jobIds.length && !await deps.jobsOwned(input.adminId, jobIds)) return { ok: false, error: "These jobs are no longer available. Refresh Stock Reviews." };
     const ticket = token();

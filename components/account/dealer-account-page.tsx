@@ -415,14 +415,7 @@ async function OverviewSection({
               {recent.map((listing) => (
                 <TableRow key={listing.id}>
                   <TableCell data-column="title" className="max-w-[24rem] break-words font-medium">
-                    <ListingTableTitle image={listing.images?.[0]}>
-                      <Link
-                      href={listingsHref(listing.title, "ALL", "newest", 1)}
-                      className="text-text-trust hover:underline"
-                    >
-                      {listing.title}
-                    </Link>
-                    </ListingTableTitle>
+                    <ListingTableTitle listingId={listing.id} image={listing.images?.[0]}>{listing.title}</ListingTableTitle>
                   </TableCell>
                   <TableCell data-column="category">{listing.category.name}</TableCell>
                   <TableCell data-column="status">
@@ -565,7 +558,7 @@ async function ListingsSection({
                 {listings.map((listing) => (
                   <TableRow key={listing.id}>
                     <TableCell data-column="title" className="max-w-[24rem] break-words font-medium">
-                      <ListingTableTitle image={listing.images?.[0]}>{listing.title}</ListingTableTitle>
+                      <ListingTableTitle listingId={listing.id} image={listing.images?.[0]}>{listing.title}</ListingTableTitle>
                     </TableCell>
                     <TableCell data-column="category">{listing.category.name}</TableCell>
                     <TableCell data-column="region">{listing.region.name}</TableCell>

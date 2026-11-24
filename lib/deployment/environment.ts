@@ -1,5 +1,6 @@
 import { isStagingAppOrigin } from "@/lib/deployment/staging-origin";
 import { PREVIEW_PROJECT_REF } from "@/scripts/wipe-preview-marketplace/target";
+import type { RuntimeEnv } from "@/lib/runtime-env";
 
 const STAGING_SUPABASE_ORIGIN = `https://${PREVIEW_PROJECT_REF}.supabase.co`;
 
@@ -16,7 +17,7 @@ function isPreviewDatabaseUrl(raw: string): boolean {
 }
 
 /** Hosted staging is an explicit deployment role tied to the preview Supabase project. */
-export function isStagingDeployment(env: NodeJS.ProcessEnv = process.env): boolean {
+export function isStagingDeployment(env: RuntimeEnv = process.env): boolean {
   if (env.NODE_ENV !== "production" || env.VERCEL_ENV !== "preview") return false;
   if (env.ITRADER_DEPLOYMENT_ROLE !== "staging") return false;
   if (!isStagingAppOrigin(env.NEXT_PUBLIC_APP_URL)) return false;

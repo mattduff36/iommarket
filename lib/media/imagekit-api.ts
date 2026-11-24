@@ -158,10 +158,17 @@ export function signedImageKitDeliveryUrl(input: {
   relativePath: string;
   env?: NodeJS.ProcessEnv;
   now?: number;
+  reusePublicRendition?: boolean;
 }) {
   const env = input.env ?? process.env;
   const config = imageKitConfig(env);
-  const expiresAt = Math.floor((input.now ?? Date.now()) / 1000) + imageKitSignatureTtlSeconds(env);
+  const ttl = imageKitSignatureTtlSeconds(env);
+  const now = Math.floor((input.now ?? Date.now()) / 1000);
+  // Reuse the same CDN URL for a short window after a fresh public authorization.
+  // Rounding down never extends the lifetime of an already-issued signature.
+  const windowSeconds = Math.min(60, Math.floor(ttl / 4));
+  const signedAt = input.reusePublicRendition ? now - now % windowSeconds : now;
+  const expiresAt = signedAt + ttl;
   return signImageKitRelativePath({
     endpoint: config.endpoint,
     privateKey: config.privateKey,
