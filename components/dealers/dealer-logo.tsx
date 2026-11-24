@@ -41,14 +41,16 @@ export function DealerLogo({
             onError={() => setFailedLogoUrl(displayUrl)}
           />
         ) : (
-          // Legacy external logos cannot be optimized safely without permitting arbitrary hosts.
-          // eslint-disable-next-line @next/next/no-img-element
-          <img
-            src={displayUrl}
-            alt={`${dealerName} logo`}
-            className={cn("h-full w-full object-contain p-1.5", imageClassName)}
-            onError={() => setFailedLogoUrl(displayUrl)}
-          />
+          /* Picture avoids a separate React preload for legacy and signed logos. */
+          <picture className="contents">
+            {/* Legacy external logos cannot use the optimizer without allowing arbitrary hosts. */}
+            <img
+              src={displayUrl}
+              alt={`${dealerName} logo`}
+              className={cn("h-full w-full object-contain p-1.5", imageClassName)}
+              onError={() => setFailedLogoUrl(displayUrl)}
+            />
+          </picture>
         )
       ) : (
         <span aria-label={`No logo for ${dealerName}`}>{dealerName.charAt(0).toUpperCase() || "?"}</span>
