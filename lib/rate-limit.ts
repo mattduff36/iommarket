@@ -1,7 +1,7 @@
 import { limitWithUpstash, resetUpstashLimitersForTests } from "@/lib/rate-limit-upstash";
 import type { RuntimeEnv } from "@/lib/runtime-env";
 import type { RateLimitResult } from "@/lib/rate-limit-result";
-import { isStagingRateLimitExempt } from "@/lib/deployment/staging-rate-limit";
+import { getRateLimitExemption } from "@/lib/rate-limit-exemptions";
 
 export type { RateLimitDenial, RateLimitResult } from "@/lib/rate-limit-result";
 export {
@@ -97,8 +97,9 @@ export async function checkRateLimit(
   const { windowMs, maxRequests, policy } = { ...DEFAULTS, ...config };
   const env = options.env ?? process.env;
   const now = options.now ?? Date.now();
-  if (await isStagingRateLimitExempt(env)) {
-    return { allowed: true, remaining: Number.MAX_SAFE_INTEGER, resetAt: now, unavailable: false };
+  const exemption = await getRateLimitExemption(env);
+  if (exemption) {
+    return { allowed: true, remaining: Number.MAX_SAFE_INTEGER, resetAt: now, unavailable: false, exemption };
   }
   const prefix = `${rateLimitPrefix(env)}${policy ? `${policy}:` : ""}`;
   const backend = resolveRateLimitBackend(env);

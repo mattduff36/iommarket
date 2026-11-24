@@ -20,14 +20,12 @@ export async function GET(request: NextRequest) {
     request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ??
     request.headers.get("x-real-ip") ??
     "unknown";
-  const rateDenial = toRateLimitDenial(
-    await checkRateLimit(makeRateLimitKey("vehicle-models", requester), {
-      windowMs: 60_000,
-      maxRequests: 60,
-      policy: "vehicle-models",
-    }),
-    "Rate limit exceeded.",
-  );
+  const rate = await checkRateLimit(makeRateLimitKey("vehicle-models", requester), {
+    windowMs: 60_000,
+    maxRequests: 60,
+    policy: "vehicle-models",
+  });
+  const rateDenial = toRateLimitDenial(rate, "Rate limit exceeded.");
   if (rateDenial) {
     return NextResponse.json(
       { error: rateDenial.message },
@@ -38,6 +36,8 @@ export async function GET(request: NextRequest) {
   const models = await getActiveModelsByMake(parsed.data.make);
   return NextResponse.json(
     { models },
-    { headers: { "Cache-Control": "public, max-age=300, stale-while-revalidate=3600" } },
+    { headers: rate.exemption
+      ? { "Cache-Control": "private, no-store", "Server-Timing": `itrader-rate-limit;desc="${rate.exemption}"` }
+      : { "Cache-Control": "public, max-age=300, stale-while-revalidate=3600" } },
   );
 }

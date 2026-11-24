@@ -1,5 +1,4 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
-import { headers } from "next/headers";
 import { isStagingDeployment } from "@/lib/deployment/environment";
 import type { RuntimeEnv } from "@/lib/runtime-env";
 
@@ -24,15 +23,4 @@ export function verifyStagingRateLimitProof(proof: string | null, cookie: string
   const [, expires, provided] = match;
   if (Number(expires) <= now || Number(expires) > now + 5 * 60_000) return false;
   return timingSafeEqual(Buffer.from(signature(secret, expires, cookie), "hex"), Buffer.from(provided, "hex"));
-}
-
-export async function isStagingRateLimitExempt(env: RuntimeEnv = process.env) {
-  if (!isStagingDeployment(env)) return false;
-  try {
-    const request = await headers();
-    return verifyStagingRateLimitProof(request.get(STAGING_RATE_LIMIT_HEADER), request.get("cookie") ?? "", env);
-  } catch {
-    // Background jobs have no request context and receive normal limits.
-    return false;
-  }
 }

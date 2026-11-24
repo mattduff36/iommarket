@@ -1,7 +1,7 @@
 import { checkRateLimit, makeRateLimitKey } from "@/lib/rate-limit";
 import type { RateLimitResult } from "@/lib/rate-limit-result";
 import type { MediaDenialSource } from "./request-diagnostics";
-import { isStagingRateLimitExempt } from "@/lib/deployment/staging-rate-limit";
+import { isRateLimitExempt } from "@/lib/rate-limit-exemptions";
 
 export type MediaRateLimitResult = RateLimitResult & { denialSource?: MediaDenialSource };
 
@@ -66,7 +66,7 @@ export function createMediaReadLimiter(
 const limitMediaRead = createMediaReadLimiter();
 
 export async function checkMediaReadRateLimit(identifier: string): Promise<MediaRateLimitResult> {
-  if (await isStagingRateLimitExempt()) {
+  if (await isRateLimitExempt()) {
     return { allowed: true, remaining: Number.MAX_SAFE_INTEGER, resetAt: Date.now(), unavailable: false };
   }
   return limitMediaRead(identifier);

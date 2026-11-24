@@ -1,6 +1,6 @@
 import { launchJobIds } from "./desktop-launch-store";
 import { z } from "zod";
-import { isStagingRateLimitExempt } from "@/lib/deployment/staging-rate-limit";
+import { isRateLimitExempt } from "@/lib/rate-limit-exemptions";
 import {
   browserOriginAllowed,
   desktopAccountEnabled,
@@ -170,7 +170,7 @@ async function allowRate(
   limit: number,
   windowSeconds: number,
 ): Promise<WorkerControlFailure | null> {
-  if (await isStagingRateLimitExempt(deps.env)) return null;
+  if (await isRateLimitExempt(deps.env)) return null;
   try {
     const allowed = await deps.desktop.store.consumeRate(bucket, limit, windowSeconds);
     return allowed ? null : failure(429, "rate_limited");

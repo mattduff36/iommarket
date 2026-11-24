@@ -1,6 +1,6 @@
 import { createHash, randomBytes } from "node:crypto";
 import { db } from "@/lib/db";
-import { isStagingRateLimitExempt } from "@/lib/deployment/staging-rate-limit";
+import { isRateLimitExempt } from "@/lib/rate-limit-exemptions";
 import {
   browserOriginAllowed,
   DESKTOP_PAIRING_PATH,
@@ -375,7 +375,7 @@ export async function approveDesktopDevice(
   const gate = gateOf(deps);
   if (!gate) return failure(503, "unavailable");
   if (!browserOriginAllowed(input.origin, input.host, input.forwardedHost, gate.origin)) return failure(403, "forbidden");
-  const limited = await isStagingRateLimitExempt(deps.env) ? null : await rate(deps.store, `approve:${input.adminId}`, APPROVE_LIMIT);
+  const limited = await isRateLimitExempt(deps.env) ? null : await rate(deps.store, `approve:${input.adminId}`, APPROVE_LIMIT);
   if (limited) return limited;
   const account = await findAccount(deps, input.adminId);
   if (account === "down") return failure(503, "unavailable");

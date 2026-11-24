@@ -1,10 +1,13 @@
 import { publicErrorBody, type PublicErrorBody } from "@/lib/forms/public-error";
 
+export type RateLimitExemption = "account" | "ip";
+
 export interface RateLimitResult {
   allowed: boolean;
   remaining: number;
   resetAt: number;
   unavailable: boolean;
+  exemption?: RateLimitExemption;
 }
 
 export interface RateLimitDenial {

@@ -1,5 +1,5 @@
 import { requireRole } from "@/lib/auth";
-import { isStagingRateLimitExempt } from "@/lib/deployment/staging-rate-limit";
+import { isRateLimitExempt } from "@/lib/rate-limit-exemptions";
 import { desktopAccountEnabled } from "@/lib/dealer-stock-sync/desktop-config";
 import { authoriseDesktopRequest, liveDesktopDependencies } from "@/lib/dealer-stock-sync/desktop-service";
 import { getUpdateRelease } from "@/lib/dealer-stock-sync/update-release";
@@ -32,7 +32,7 @@ export async function GET(request: Request) {
   try { admin = await requireRole("ADMIN"); } catch { return fail(401); }
   if (!desktopAccountEnabled(process.env, admin.id)) return fail(403);
   try {
-    if (!await isStagingRateLimitExempt() && !await liveDesktopDependencies().store.consumeRate(`download:${admin.id}`, 12, 60)) return fail(429);
+    if (!await isRateLimitExempt() && !await liveDesktopDependencies().store.consumeRate(`download:${admin.id}`, 12, 60)) return fail(429);
     const release = await getUpdateRelease();
     if (request.headers.get("accept") === "application/json") return Response.json({ downloadUrl: release.downloadUrl, version: release.version }, { headers });
     return new Response(null, { status: 302, headers: { ...headers, Location: release.downloadUrl } });
