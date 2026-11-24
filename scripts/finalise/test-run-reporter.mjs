@@ -10,9 +10,9 @@ export default class FinaliseReporter {
   onTestRunEnd(modules, errors, reason) {
     if (errors.length || reason === "interrupted") return;
     const states = {};
-    for (const module of modules) {
-      const name = path.relative(process.cwd(), module.moduleId).split(path.sep).join("/");
-      const state = module.state();
+    for (const testModule of modules) {
+      const name = path.relative(process.cwd(), testModule.moduleId).split(path.sep).join("/");
+      const state = testModule.state();
       if (Object.hasOwn(states, name) || !["passed", "skipped", "failed"].includes(state)) return;
       states[name] = state;
     }
