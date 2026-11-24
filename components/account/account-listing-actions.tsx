@@ -168,7 +168,7 @@ export function AccountListingActions({
 
   return (
     <div className="flex min-w-0 flex-col items-end gap-2">
-      <div className="flex flex-wrap items-center justify-end gap-2">
+      <div className="inline-flex w-max max-w-full items-center justify-end gap-1.5">
         {showFeaturedPending ? (
           <p className="max-w-64 text-xs text-text-secondary">
             Featured purchased — starts after approval

@@ -1,3 +1,4 @@
+import { ListingTableTitle } from "@/components/account/listing-table-title";
 import { AdminColumnMenu, AdminColumnVisibility } from "@/components/admin/admin-column-visibility";
 import { AdminTable, adminNumericCellClass } from "@/components/admin/admin-table";
 import { AdminPageHeader } from "@/components/admin/admin-page-header";
@@ -310,6 +311,7 @@ async function OverviewSection({
       orderBy: { createdAt: "desc" },
       take: RECENT_LISTING_LIMIT,
       select: {
+        images: listingInclude.images,
         id: true,
         title: true,
         price: true,
@@ -421,12 +423,14 @@ async function OverviewSection({
               {recent.map((listing) => (
                 <TableRow key={listing.id}>
                   <TableCell data-column="title" className="max-w-[24rem] break-words font-medium">
-                    <Link
+                    <ListingTableTitle image={listing.images?.[0]}>
+                      <Link
                       href={listingsHref(listing.title, "ALL", "newest", 1)}
                       className="text-text-trust hover:underline"
                     >
                       {listing.title}
                     </Link>
+                    </ListingTableTitle>
                   </TableCell>
                   <TableCell data-column="category">{listing.category.name}</TableCell>
                   <TableCell data-column="status">
@@ -568,7 +572,9 @@ async function ListingsSection({
               <TableBody>
                 {listings.map((listing) => (
                   <TableRow key={listing.id}>
-                    <TableCell data-column="title" className="max-w-[24rem] break-words font-medium">{listing.title}</TableCell>
+                    <TableCell data-column="title" className="max-w-[24rem] break-words font-medium">
+                      <ListingTableTitle image={listing.images?.[0]}>{listing.title}</ListingTableTitle>
+                    </TableCell>
                     <TableCell data-column="category">{listing.category.name}</TableCell>
                     <TableCell data-column="region">{listing.region.name}</TableCell>
                     <TableCell data-column="price" className={adminNumericCellClass}>£{(listing.price / 100).toLocaleString()}</TableCell>

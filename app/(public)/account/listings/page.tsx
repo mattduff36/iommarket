@@ -1,3 +1,4 @@
+import { ListingTableTitle } from "@/components/account/listing-table-title";
 import { AdminColumnMenu, AdminColumnVisibility } from "@/components/admin/admin-column-visibility";
 import { AdminTable, adminNumericCellClass } from "@/components/admin/admin-table";
 import { AdminPageHeader } from "@/components/admin/admin-page-header";
@@ -105,6 +106,7 @@ export default async function AccountListingsPage({ searchParams }: Props) {
   };
 
   const listingInclude = {
+    images: { take: 1, orderBy: { order: "asc" as const } },
     revisions: { where: { status: "DRAFT" as const }, select: { id: true }, take: 1 },
     category: { select: { name: true } },
     region: { select: { name: true } },
@@ -227,7 +229,7 @@ export default async function AccountListingsPage({ searchParams }: Props) {
             {listings.map((listing) => (
               <TableRow key={listing.id}>
                 <TableCell data-column="title" className="font-medium max-w-[24rem] break-words">
-                  {listing.title}
+                  <ListingTableTitle image={listing.images?.[0]}>{listing.title}</ListingTableTitle>
                 </TableCell>
                 <TableCell data-column="category">{listing.category.name}</TableCell>
                 <TableCell data-column="region">{listing.region.name}</TableCell>

@@ -23,7 +23,7 @@
 }
 .responsive-table-frame [data-column="actions"] > div { min-width: min-content; }
 [data-admin-table="member-listings"] td[data-column="actions"],
-[data-admin-table="dealer-inventory"] td[data-column="actions"] { min-width: 8rem; }
+[data-admin-table="dealer-inventory"] td[data-column="actions"] { min-width: 9.5rem; }
 
 
 /* Preserve short dates and labels; identities remain free to wrap. */
@@ -57,3 +57,38 @@
   .responsive-table-frame[data-ready] tfoot tr { display: flex; flex-wrap: wrap; }
 }
 
+
+.listing-table-title {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+.listing-table-thumbnail {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 48px;
+  height: 36px;
+  overflow: hidden;
+  border-radius: 4px;
+  background: var(--sem-bg-surface);
+}
+@container (max-width: 760px) {
+  :is([data-admin-table="member-listings"], [data-admin-table="dealer-inventory"], [data-admin-table="dealer-recent"]) .responsive-table-frame[data-ready] tbody tr {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .responsive-table-frame[data-ready] tr:has(.listing-table-title) :is([data-column="title"], [data-column="actions"]) {
+    grid-column: 1 / -1;
+    max-width: none;
+  }
+  .responsive-table-frame[data-ready] tr:has(.listing-table-title) :is([data-column="title"], [data-column="actions"])::before {
+    display: none;
+  }
+  .responsive-table-frame[data-ready] tr:has(.listing-table-title) [data-column="actions"] {
+    margin-top: 4px;
+    padding-top: 12px;
+    border-top: 1px solid var(--sem-border-default);
+  }
+  .listing-table-thumbnail { width: 80px; height: 60px; }
+}
