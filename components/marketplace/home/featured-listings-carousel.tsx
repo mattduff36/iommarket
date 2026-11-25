@@ -251,7 +251,6 @@ export function FeaturedListingsCarousel({
                 >
                   <ListingCard
                     title={listing.title}
-                    condition={listing.condition}
                     price={listing.price}
                     photo={listing.photo}
                     location={listing.location}

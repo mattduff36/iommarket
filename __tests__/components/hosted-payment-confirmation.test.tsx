@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import "@testing-library/jest-dom/vitest";
 import * as React from "react";
-import { act, cleanup, render, screen } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const { confirmMock } = vi.hoisted(() => ({ confirmMock: vi.fn() }));
@@ -34,6 +34,21 @@ describe("HostedPaymentConfirmation", () => {
   afterEach(() => {
     cleanup();
     vi.useRealTimers();
+  });
+
+  it("sends a payer code on request and confirms the Featured upgrade after entry", async () => {
+    confirmMock.mockResolvedValueOnce({ status: "payer-code" })
+      .mockResolvedValueOnce({ status: "code-sent" })
+      .mockResolvedValueOnce({ status: "confirmed", checkoutType: "featured_upgrade", listingId: "car" });
+    await renderAndFlush(<HostedPaymentConfirmation paymentJobRef="1234567890" />);
+    expect(confirmMock).toHaveBeenCalledTimes(1);
+    await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Send authorisation code" })); });
+    expect(confirmMock).toHaveBeenLastCalledWith("1234567890", "send");
+    expect(screen.getByText("Check the receipt email for your code.")).toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText("Authorisation code"), { target: { value: "001234" } });
+    await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Confirm Featured upgrade" })); });
+    expect(confirmMock).toHaveBeenLastCalledWith("1234567890", { code: "001234" });
+    expect(screen.getByText("Your featured upgrade payment is confirmed")).toBeInTheDocument();
   });
 
   it("shows waiting until the server confirms, then offers the confirmed listing", async () => {

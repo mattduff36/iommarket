@@ -211,7 +211,6 @@ export function ListingResultsClient({
               location={listing.regionName}
               meta={listing.categoryName}
               featured={listing.featured}
-                condition={listing.condition}
               sold={listing.sold}
               badge={listing.badge ?? (listing.featured ? "Featured" : undefined)}
               writeOffCategory={listing.writeOffCategory}

@@ -336,7 +336,7 @@ async function payForListingBody(input: PayForListingInput) {
       const featured = await upgradeFeatured(listing.id);
       if ("error" in featured) return { error: featured.error };
       if (!featured.data?.checkoutUrl) return { error: "Unable to create the Featured checkout. Please try again." };
-      return { data: { ...featured.data, skippedPayment: false, listingSubmitted: true } };
+      return { data: { checkoutUrl: featured.data.checkoutUrl, skippedPayment: false, listingSubmitted: true } };
     }
 
     const combinedPricePence = pricing.privateListingPence + pricing.featuredUpgradePence;
@@ -650,19 +650,6 @@ async function upgradeFeaturedBody(listingId: string) {
   if (listing.featured) {
     return { error: "This listing is already featured" };
   }
-  if (listing.dealerId === null) {
-    const { canSkipListingPayment } = await import("@/lib/listings/payment-skip");
-    const listingEntitlement = await canSkipListingPayment(db, {
-      listingId: listing.id, userId: user.id, dealerId: null,
-    });
-    if (!listingEntitlement.skip) {
-      return {
-        error:
-          "Free listings cannot be featured. Choose a paid listing plan to unlock featured upgrades.",
-      };
-    }
-  }
-
   try {
     const pricing = await getMarketplacePricing();
     const consumedEntitlement = await db.payment.findFirst({ where: {
@@ -684,7 +671,7 @@ async function upgradeFeaturedBody(listingId: string) {
       const sample = await createSampleCheckout({ userId: user.id, kind: "featured_upgrade",
         targetId: listing.id, description: `Featured upgrade: ${listing.title}`,
         amountPence: pricing.featuredUpgradePence, returnUrl: listingReturnTo });
-      return { data: sample.data };
+      return { data: { ...sample.data, accountEmail: user.email } };
     }
     const session = await createFeaturedUpgradeCheckout({
       listingId: listing.id,
@@ -731,7 +718,7 @@ async function upgradeFeaturedBody(listingId: string) {
       paymentId: pending.payment.id, listingId: listing.id, productCode,
       merchantReference: boundSession.merchantReference, issuedAt: Date.now(),
     });
-    return { data: { checkoutUrl: presentHostedCheckoutUrl(boundSession.url) } };
+    return { data: { checkoutUrl: presentHostedCheckoutUrl(boundSession.url), accountEmail: user.email } };
   } catch (err) {
     const known = toUserPaymentError(err instanceof Error ? err.message : "");
     if (known) {

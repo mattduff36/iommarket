@@ -571,6 +571,7 @@ export default async function ListingDetailPage({ params, searchParams }: Props)
                 <Tag className="mr-1 h-3 w-3" />
                 {listing.category.name}
               </Badge>
+              <Badge variant="neutral">{listing.condition === "NEW" ? "New" : "Used"}</Badge>
               <Badge variant="neutral">
                 <MapPin className="mr-1 h-3 w-3" />
                 {listing.region.name}
@@ -652,6 +653,16 @@ export default async function ListingDetailPage({ params, searchParams }: Props)
                 <p className="text-sm font-semibold text-text-primary">
                   {listing.user.name ?? "Anonymous"}
                 </p>
+              )}
+              {sourceHref && listing.dealer && (
+                <div className="border-t border-border pt-3">
+                  <DealerStockLink
+                    href={sourceHref}
+                    dealerName={listing.dealer.name}
+                    dealerId={listing.dealer.id}
+                    listingId={listing.id}
+                  />
+                </div>
               )}
             </CardContent>
           </Card>
@@ -786,7 +797,6 @@ export default async function ListingDetailPage({ params, searchParams }: Props)
                 location={item.region.name}
                 meta={item.category.name}
                 featured={item.featured}
-                condition={item.condition}
                 badge={item.status === "ADMIN_PREVIEW" ? ADMIN_PREVIEW_BADGE : item.featured ? "Featured" : undefined}
                 {...listingPreviewCardProps(
                   item,
@@ -800,10 +810,6 @@ export default async function ListingDetailPage({ params, searchParams }: Props)
         </section>
       )}
 
-      <p className="text-sm text-text-secondary">Vehicle condition: {listing.condition === "NEW" ? "New" : "Used"}</p>
-      {sourceHref && listing.dealer && (
-        <DealerStockLink href={sourceHref} dealerName={listing.dealer.name} dealerId={listing.dealer.id} listingId={listing.id} />
-      )}
       {isVisible ? (
         <JsonLd
           data={buildListingProductJsonLd({

@@ -18,6 +18,8 @@ import {
 } from "@/lib/payments/checkout-handoff";
 import type { SampleCheckoutKind, SampleCheckoutView } from "@/lib/payments/sample-checkout";
 
+import { SampleReceiptConfirmation } from "./sample-receipt-confirmation";
+
 type CardChoice = "approve" | "decline";
 
 function sampleReturnContext(kind: SampleCheckoutKind): PaymentReturnContext {
@@ -40,6 +42,9 @@ export function SampleCheckout({
 }) {
   const [checkout, setCheckout] = useState(initialCheckout);
   const [selectedCard, setSelectedCard] = useState<CardChoice | null>(null);
+  const accountEmail = initialCheckout.accountEmail;
+  const [receiptEmail, setReceiptEmail] = useState(accountEmail ?? "");
+  const [confirmingReceipt, setConfirmingReceipt] = useState(false);
   const [message, setMessage] = useState("");
   const [uncertain, setUncertain] = useState(false);
   const [retrying, setRetrying] = useState(initialCheckout.status !== "FAILED");
@@ -80,6 +85,23 @@ export function SampleCheckout({
       context: sampleReturnContext(checkout.kind),
       sampleCheckoutId: checkout.id,
     }));
+  }
+
+  function startPayment() {
+    if (isPending || uncertain || isExpired) return;
+    if (accountEmail && checkout.kind === "featured_upgrade" && selectedCard === "approve") {
+      const address = receiptEmail.trim().toLowerCase();
+      if (address.length > 254 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(address)) {
+        setMessage("Enter a valid sample receipt email.");
+        return;
+      }
+      if (address !== accountEmail.trim().toLowerCase()) {
+        setMessage("");
+        setConfirmingReceipt(true);
+        return;
+      }
+    }
+    submitPayment();
   }
 
   function submitPayment() {
@@ -192,6 +214,9 @@ export function SampleCheckout({
               <strong>Checkout cancelled</strong>
               <p>No money was charged.</p>
             </div>
+          ) : confirmingReceipt ? (
+            <SampleReceiptConfirmation email={receiptEmail.trim()} listing={checkout.description}
+              disabled={isPending || isExpired} expired={isExpired} onConfirm={submitPayment} error={message} />
           ) : declined && !retrying ? (
             <ReportableError as="div" className="flowpay-result flowpay-error" role="alert">
               <strong>Sample card declined</strong>
@@ -217,6 +242,22 @@ export function SampleCheckout({
                 </label>
               </fieldset>
 
+              {checkout.kind === "featured_upgrade" && accountEmail && (
+                <div className="mb-4"><label className="block font-medium">
+                  Receipt email
+                  <input type="email" value={receiptEmail} maxLength={254}
+                    className="mt-1 block w-full rounded border border-gray-400 bg-white px-3 py-2 text-gray-900"
+                    onChange={(event) => setReceiptEmail(event.target.value)} />
+                  <small className="mt-1 block font-normal">Use your registered email for automatic confirmation, or a different address to try the mock inbox.</small>
+                </label>
+                  {receiptEmail.trim().toLowerCase() !== accountEmail.toLowerCase() && (
+                    <button type="button" className="mt-2 break-all underline" onClick={() => {
+                      setReceiptEmail(accountEmail);
+                      setMessage("");
+                    }}>Use my iTrader email ({accountEmail})</button>
+                  )}
+                </div>
+              )}
               <fieldset className="flowpay-entry" disabled aria-describedby="sample-card-note">
                 <legend>Use a new card <span>Unavailable in sample checkout</span></legend>
                 <label>Card Number<input type="text" placeholder="0000 0000 0000 0000" disabled autoComplete="off" /></label>
@@ -229,7 +270,7 @@ export function SampleCheckout({
               <p className="flowpay-note" id="sample-card-note">Select a saved sample card above. Real card details cannot be entered.</p>
               {message ? <ReportableError as="p" className="flowpay-error" role="alert">{message}</ReportableError> : null}
               {isExpired ? <p className="flowpay-error" role="status">This sample checkout has expired. Return to iTrader to start again.</p> : null}
-              <button type="button" className="flowpay-pay" disabled={uncertain || !selectedCard || isPending || attemptsLeft === 0 || isExpired} onClick={submitPayment}>
+              <button type="button" className="flowpay-pay" disabled={uncertain || !selectedCard || isPending || attemptsLeft === 0 || isExpired} onClick={startPayment}>
                 {isPending ? "Processing…" : "Pay using Card"}
               </button>
             </>

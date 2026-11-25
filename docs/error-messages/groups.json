@@ -75,10 +75,10 @@
     "lib-services": 12
   },
   "family_counts": {
-    "public-sink": 1223,
-    "raw-message": 168,
-    "fragment": 588,
-    "static-literal": 305,
+    "public-sink": 1222,
+    "raw-message": 169,
+    "fragment": 587,
+    "static-literal": 306,
     "thrown": 891,
     "monitoring": 80,
     "rate-limit": 13,
@@ -283,7 +283,7 @@
     },
     {
       "id": "duplicate:exact-source-repeat:payments-b-public-boundary:public-sink",
-      "count": 25,
+      "count": 24,
       "example": "actions/payments.ts:140",
       "rule_id": "exact-source-repeat",
       "classification": "duplicate"
@@ -527,9 +527,9 @@
       "classification": "duplicate"
     },
     {
-      "id": "duplicate:exact-source-repeat:payments-b-public-boundary:fragment",
+      "id": "duplicate:exact-source-repeat:payments-b-public-boundary:static-literal",
       "count": 7,
-      "example": "actions/payments.ts:542",
+      "example": "actions/payments.ts:159",
       "rule_id": "exact-source-repeat",
       "classification": "duplicate"
     },
@@ -562,9 +562,9 @@
       "classification": "displayed"
     },
     {
-      "id": "duplicate:exact-source-repeat:payments-b-public-boundary:static-literal",
+      "id": "duplicate:exact-source-repeat:payments-b-public-boundary:fragment",
       "count": 6,
-      "example": "actions/payments.ts:159",
+      "example": "actions/payments.ts:542",
       "rule_id": "exact-source-repeat",
       "classification": "duplicate"
     },
@@ -751,6 +751,13 @@
       "classification": "duplicate"
     },
     {
+      "id": "duplicate:exact-source-repeat:payments-b-public-boundary:raw-message",
+      "count": 3,
+      "example": "actions/payments.ts:233",
+      "rule_id": "exact-source-repeat",
+      "classification": "duplicate"
+    },
+    {
       "id": "duplicate:exact-source-repeat:uploads-b-public-boundary:field-errors",
       "count": 3,
       "example": "lib/forms/action-error.ts:63",
@@ -845,13 +852,6 @@
       "id": "duplicate:exact-source-repeat:listings-b-public-boundary:raw-message",
       "count": 2,
       "example": "actions/listings.ts:122",
-      "rule_id": "exact-source-repeat",
-      "classification": "duplicate"
-    },
-    {
-      "id": "duplicate:exact-source-repeat:payments-b-public-boundary:raw-message",
-      "count": 2,
-      "example": "actions/payments.ts:233",
       "rule_id": "exact-source-repeat",
       "classification": "duplicate"
     },

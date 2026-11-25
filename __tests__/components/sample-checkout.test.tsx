@@ -43,6 +43,49 @@ describe("SampleCheckout", () => {
     window.localStorage.clear();
   });
 
+  it("waits for the different-email mock inbox code before submitting the Featured sample payment", async () => {
+    const user = userEvent.setup();
+    const fixture = checkout({ kind: "featured_upgrade", description: "Featured upgrade: test car", accountEmail: "seller@example.test" });
+    submitMock.mockResolvedValue({ data: { ...fixture, status: "SUCCEEDED", attemptCount: 1 } });
+    render(<SampleCheckout checkout={fixture} />);
+    await user.clear(screen.getByRole("textbox", { name: /receipt email/i }));
+    await user.type(screen.getByRole("textbox", { name: /receipt email/i }), "payer@example.test");
+    await user.click(screen.getByRole("radio", { name: /successful payment/i }));
+    await user.click(screen.getByRole("button", { name: "Pay using Card" }));
+    await user.click(screen.getByRole("button", { name: "Send authorisation code" }));
+    await user.click(screen.getByRole("button", { name: "Open mock inbox" }));
+    const letter = screen.getByRole("article", { name: "Mock receipt email" });
+    expect(letter).toHaveTextContent("payer@example.test");
+    const code = letter.querySelector("code")!.textContent!;
+    expect(code).toMatch(/^[0-9]{6}$/);
+    const input = screen.getByLabelText("Authorisation code");
+    await user.type(input, code === "000000" ? "111111" : "000000");
+    await user.click(screen.getByRole("button", { name: "Confirm Featured upgrade" }));
+    expect(screen.getByRole("alert")).toHaveTextContent("did not match");
+    expect(submitMock).not.toHaveBeenCalled();
+    await user.clear(input);
+    await user.type(input, code);
+    await user.click(screen.getByRole("button", { name: "Confirm Featured upgrade" }));
+    expect(submitMock).toHaveBeenCalledTimes(1);
+    expect(await screen.findByText("Sample payment approved")).toBeInTheDocument();
+  });
+
+  it("skips the code when the buyer restores their registered receipt email before paying", async () => {
+    const user = userEvent.setup();
+    const fixture = checkout({ kind: "featured_upgrade", accountEmail: "seller@example.test" });
+    submitMock.mockResolvedValue({ data: { ...fixture, status: "SUCCEEDED", attemptCount: 1 } });
+    render(<SampleCheckout checkout={fixture} />);
+    const input = screen.getByRole("textbox", { name: /receipt email/i });
+    await user.clear(input);
+    await user.type(input, "other@example.test");
+    await user.click(screen.getByRole("button", { name: /Use my iTrader email/i }));
+    expect(input).toHaveValue("seller@example.test");
+    await user.click(screen.getByRole("radio", { name: /successful payment/i }));
+    await user.click(screen.getByRole("button", { name: "Pay using Card" }));
+    expect(await screen.findByText("Sample payment approved")).toBeInTheDocument();
+    expect(screen.queryByText("Send authorisation code")).not.toBeInTheDocument();
+  });
+
   it("submits the selected sample approval and closes only after the original tab acknowledges it", async () => {
     const user = userEvent.setup();
     const closeSpy = vi.spyOn(window, "close").mockImplementation(() => {});

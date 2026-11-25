@@ -17,14 +17,15 @@ function hashIdentifier(scope: string, identifier: string) {
     .digest("hex");
 }
 
-async function consumeBucket(
+export async function consumeRateLimitBucket(
   tx: Pick<Prisma.TransactionClient, "$queryRaw">,
-  scope: "email" | "address",
+  scope: "email" | "address" | "featured-receipt-code",
   identifier: string,
   now: Date,
+  windowMs = WINDOW_MS,
 ): Promise<BucketRow> {
   const key = hashIdentifier(scope, identifier);
-  const nextReset = new Date(now.getTime() + WINDOW_MS);
+  const nextReset = new Date(now.getTime() + windowMs);
   const rows = await tx.$queryRaw<BucketRow[]>(Prisma.sql`
     INSERT INTO "SignupRateLimitBucket" ("key", "count", "resetAt", "updatedAt")
     VALUES (${key}, 1, ${nextReset}, ${now})
@@ -41,7 +42,7 @@ async function consumeBucket(
     RETURNING "count", "resetAt"
   `);
   const bucket = rows[0];
-  if (!bucket) throw new Error("Signup rate limit could not be recorded.");
+  if (!bucket) throw new Error(scope === "featured-receipt-code" ? "Receipt code attempt could not be recorded." : "Signup rate limit could not be recorded.");
   return bucket;
 }
 
@@ -56,7 +57,7 @@ export async function checkSignupRateLimit(input: {
       DELETE FROM "SignupRateLimitBucket"
       WHERE "resetAt" <= ${now}
     `);
-    const addressBucket = await consumeBucket(
+    const addressBucket = await consumeRateLimitBucket(
       tx,
       "address",
       input.clientAddress,
@@ -65,7 +66,7 @@ export async function checkSignupRateLimit(input: {
     if (addressBucket.count > MAX_ADDRESS_ATTEMPTS) {
       return { allowed: false, resetAt: addressBucket.resetAt };
     }
-    const emailBucket = await consumeBucket(tx, "email", input.email, now);
+    const emailBucket = await consumeRateLimitBucket(tx, "email", input.email, now);
     return {
       allowed: emailBucket.count <= MAX_EMAIL_ATTEMPTS,
       resetAt: emailBucket.resetAt,
