@@ -8,14 +8,15 @@ import { checkRateLimit, makeRateLimitKey } from "@/lib/rate-limit";
 export type ReceiptCodeInput = "send" | { code: string };
 
 export function featuredReceiptCode(binding: readonly (string | number)[]) {
-  return createHmac("sha256", getRippleReferenceSecrets().current)
-    .update(JSON.stringify(["featured-receipt-consent-v1", ...binding]))
-    .digest("hex").slice(0, 16);
+  const digest = createHmac("sha256", getRippleReferenceSecrets().current)
+    .update(JSON.stringify(["featured-receipt-consent-v2", ...binding]))
+    .digest();
+  return String(digest.readUIntBE(0, 6) % 1_000_000).padStart(6, "0");
 }
 
 export function matchesReceiptCode(candidate: string, expected: string) {
-  return /^[0-9a-f]{16}$/i.test(candidate) &&
-    timingSafeEqual(Buffer.from(candidate.toLowerCase()), Buffer.from(expected));
+  return /^[0-9]{6}$/.test(candidate) &&
+    timingSafeEqual(Buffer.from(candidate), Buffer.from(expected));
 }
 
 export async function sendFeaturedReceiptCode(input: {

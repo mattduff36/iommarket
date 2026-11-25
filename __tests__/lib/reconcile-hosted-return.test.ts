@@ -7,9 +7,11 @@ const mocks = vi.hoisted(() => ({
   observe: vi.fn(),
   send: vi.fn(),
   limit: vi.fn(),
+  reserve: vi.fn(),
   capture: vi.fn(),
 }));
 
+vi.mock("@/lib/auth/signup-rate-limit", () => ({ consumeRateLimitBucket: mocks.reserve }));
 vi.mock("@/lib/email/send-strict", () => ({ sendStrictResendEmail: mocks.send }));
 vi.mock("@/lib/rate-limit", () => ({ makeRateLimitKey: vi.fn(), checkRateLimit: mocks.limit }));
 vi.mock("@/lib/db", () => ({ db: { $transaction: mocks.transaction } }));
@@ -216,10 +218,15 @@ describe("authenticated hosted return reconciliation", () => {
     await expect(reconcileHostedReturn(context, job, "send")).resolves.toEqual({ status: "code-sent" });
     const mail = mocks.send.mock.calls[0][0];
     expect(mail.to).toBe("payer@example.com");
-    const code = mail.text.match(/enter ([a-f0-9]{16})/)[1];
-    await expect(reconcileHostedReturn(context, job, { code: "0".repeat(16) })).resolves.toEqual({ status: "code-invalid" });
-    await expect(reconcileHostedReturn({ ...context, issuedAt: context.issuedAt + 1 }, job, { code })).resolves.toEqual({ status: "code-invalid" });
+    const code = mail.text.match(/enter ([0-9]{6}) /)[1];
+    mocks.reserve.mockResolvedValue({ count: 1 });
+    await expect(reconcileHostedReturn(context, job, { code: code === "000000" ? "111111" : "000000" })).resolves.toEqual({ status: "code-invalid" });
+    mocks.reserve.mockResolvedValueOnce({ count: 3 });
+    await expect(reconcileHostedReturn(context, job, { code: code === "000000" ? "111111" : "000000" })).resolves.toEqual({ status: "review" });
+    mocks.reserve.mockResolvedValueOnce({ count: 4 });
+    await expect(reconcileHostedReturn(context, job, { code })).resolves.toEqual({ status: "review" });
     expect(mocks.reconcile).not.toHaveBeenCalled();
+    mocks.reserve.mockResolvedValueOnce({ count: 3 });
     await expect(reconcileHostedReturn(context, job, { code })).resolves.toMatchObject({ status: "confirmed" });
   });
 

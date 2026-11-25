@@ -46,7 +46,7 @@ export async function confirmHostedListingPayment(paymentJobRef: string, verific
     const gate = await openHostedReturn();
     if (!gate.ok) return { status: gate.status };
     if (verification !== undefined && verification !== "send" &&
-      (!verification || typeof verification.code !== "string" || !/^[a-f0-9]{16}$/i.test(verification.code))) {
+      (!verification || typeof verification.code !== "string" || !/^[0-9]{6}$/.test(verification.code))) {
       return { status: "code-invalid" };
     }
     const result = verification === undefined

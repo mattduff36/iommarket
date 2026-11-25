@@ -38,6 +38,7 @@ export function FeaturedUpgradeButton({
   const [uncertain, setUncertain] = useState(false);
   const [isAwaitingPayment, setIsAwaitingPayment] = useState(false);
   const [checkoutUrl, setCheckoutUrl] = useState<string | null>(null);
+  const [accountEmail, setAccountEmail] = useState("");
   const [opened, setOpened] = useState(false);
   const [showStatus, setShowStatus] = useState(false);
   const pendingCopy = "This purchase activates after the listing is approved.";
@@ -64,6 +65,7 @@ export function FeaturedUpgradeButton({
         }
         if (result.data?.checkoutUrl) {
           const url = result.data.checkoutUrl;
+          setAccountEmail(result.data.accountEmail);
           const didOpen = openCheckout(url);
           if (!isRippleDemoCheckoutUrl(url)) {
             setCheckoutUrl(url);
@@ -92,6 +94,9 @@ export function FeaturedUpgradeButton({
             : "Your browser may have blocked the payment tab. Allow pop-ups for this site in your browser settings, or continue in this tab."}
         </DialogDescription>
         </DialogHeader>
+        {accountEmail && <p className="break-words text-sm text-text-secondary">
+          If the payment page asks for a receipt email, use your iTrader address <strong>{accountEmail}</strong>. You can correct it there before paying.
+        </p>}
         {checkoutUrl && <div className="grid gap-2 sm:grid-cols-2">
           <Button asChild><a href={checkoutUrl} target="_blank" rel="noopener noreferrer">Open payment page</a></Button>
           <Button asChild variant="ghost" className="border border-border"><a href={checkoutUrl}>Continue in this tab</a></Button>
@@ -122,6 +127,7 @@ export function FeaturedUpgradeButton({
           <Star className="h-3.5 w-3.5" />
           Feature
         </Button>
+        <p className="text-xs text-text-secondary">Use your iTrader account email at checkout.</p>
         {pendingReview ? (
           <p className="text-xs text-text-secondary">{pendingCopy}</p>
         ) : null}
@@ -156,7 +162,7 @@ export function FeaturedUpgradeButton({
         </p>
         <p className="text-sm text-text-secondary mt-0.5">
           Get more visibility with a promoted position in search results and on
-          the homepage. One-time fee of {formatGbpFromPence(featuredUpgradePricePence)}.
+          the homepage. One-time fee of {formatGbpFromPence(featuredUpgradePricePence)}. Use your iTrader account email at checkout.
         </p>
         {pendingReview ? (
           <p className="text-sm text-text-secondary mt-1">{pendingCopy}</p>

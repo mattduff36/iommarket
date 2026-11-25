@@ -935,7 +935,7 @@ describe("createDealerSubscription", () => {
 
     const result = await upgradeFeatured("caaaaaaaaaaaaaaaaaaaaaaaa");
 
-    expect(result).toEqual({ data: { checkoutUrl: expect.any(String) } });
+    expect(result).toEqual({ data: { checkoutUrl: expect.any(String), accountEmail: "dealer@example.com" } });
     expect(createFeaturedUpgradeCheckoutMock).toHaveBeenCalledWith(expect.objectContaining({
       payer: { dealerName: "A1 Motors", accountName: "Ada Lovelace", email: "dealer@example.com" },
     }));

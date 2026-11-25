@@ -243,13 +243,20 @@ export function SampleCheckout({
               </fieldset>
 
               {checkout.kind === "featured_upgrade" && accountEmail && (
-                <label className="mb-4 block font-medium">
+                <div className="mb-4"><label className="block font-medium">
                   Receipt email
                   <input type="email" value={receiptEmail} maxLength={254}
                     className="mt-1 block w-full rounded border border-gray-400 bg-white px-3 py-2 text-gray-900"
                     onChange={(event) => setReceiptEmail(event.target.value)} />
-                  <small className="mt-1 block font-normal">Use a different address to try the mock inbox.</small>
+                  <small className="mt-1 block font-normal">Use your registered email for automatic confirmation, or a different address to try the mock inbox.</small>
                 </label>
+                  {receiptEmail.trim().toLowerCase() !== accountEmail.toLowerCase() && (
+                    <button type="button" className="mt-2 break-all underline" onClick={() => {
+                      setReceiptEmail(accountEmail);
+                      setMessage("");
+                    }}>Use my iTrader email ({accountEmail})</button>
+                  )}
+                </div>
               )}
               <fieldset className="flowpay-entry" disabled aria-describedby="sample-card-note">
                 <legend>Use a new card <span>Unavailable in sample checkout</span></legend>

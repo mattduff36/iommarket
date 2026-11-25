@@ -15,18 +15,20 @@ type Props = {
 export function SampleReceiptConfirmation({ email, listing, disabled, expired, error, onConfirm }: Props) {
   const [code, setCode] = useState("");
   const [entered, setEntered] = useState("");
+  const [wrongAttempts, setWrongAttempts] = useState(0);
+  const locked = wrongAttempts >= 3;
   const [invalid, setInvalid] = useState(false);
   const [inboxOpen, setInboxOpen] = useState(false);
 
   function sendCode() {
-    setCode((previous) => previous || crypto.randomUUID().replaceAll("-", "").slice(-16));
+    setCode((previous) => previous || String(crypto.getRandomValues(new Uint32Array(1))[0] % 1_000_000).padStart(6, "0"));
   }
 
   return (
     <section className="space-y-4">
       <h2 className="text-lg font-semibold">Authorise your Featured upgrade</h2>
-      <p>Your receipt email differs from your iTrader account. Send a code to the mock inbox to confirm this sample upgrade.</p>
-      <button className="flowpay-pay" type="button" disabled={disabled} onClick={sendCode}>Send authorisation code</button>
+      <p>Your receipt email differs from your iTrader account. Send a six-digit code to the mock inbox to confirm this sample upgrade.</p>
+      <button className="flowpay-pay" type="button" disabled={disabled || locked} onClick={sendCode}>Send authorisation code</button>
       {code && (
         <div>
           <p role="status">Code sent to the mock inbox.</p>
@@ -45,8 +47,9 @@ export function SampleReceiptConfirmation({ email, listing, disabled, expired, e
       )}
       <form className="space-y-2" onSubmit={(event) => {
         event.preventDefault();
-        if (disabled) return;
+        if (disabled || locked) return;
         if (!code || entered.trim().toLowerCase() !== code) {
+          setWrongAttempts((previous) => previous + 1);
           setInvalid(true);
           return;
         }
@@ -55,11 +58,11 @@ export function SampleReceiptConfirmation({ email, listing, disabled, expired, e
         <label className="block">Authorisation code
           <input className="mt-1 block w-full rounded border border-gray-400 bg-white px-3 py-2"
             value={entered} onChange={(event) => { setEntered(event.target.value); setInvalid(false); }}
-            maxLength={32} autoComplete="off" required />
+            inputMode="numeric" pattern="[0-9]{6}" maxLength={6} autoComplete="one-time-code" required />
         </label>
-        {invalid && <p role="alert">That code did not match. Check the mock inbox and try again.</p>}
+        {invalid && <p role="alert">{locked ? "All three sample attempts have been used." : "That code did not match. Check the mock inbox and try again."}</p>}
         {(error || expired) && <p role="alert">{expired ? "This sample checkout has expired." : error}</p>}
-        <button className="flowpay-pay" disabled={disabled || !code}>Confirm Featured upgrade</button>
+        <button className="flowpay-pay" disabled={disabled || locked || !code}>Confirm Featured upgrade</button>
       </form>
     </section>
   );

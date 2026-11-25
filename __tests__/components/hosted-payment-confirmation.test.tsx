@@ -45,9 +45,9 @@ describe("HostedPaymentConfirmation", () => {
     await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Send authorisation code" })); });
     expect(confirmMock).toHaveBeenLastCalledWith("1234567890", "send");
     expect(screen.getByText("Check the receipt email for your code.")).toBeInTheDocument();
-    fireEvent.change(screen.getByLabelText("Authorisation code"), { target: { value: "1234567890abcdef" } });
+    fireEvent.change(screen.getByLabelText("Authorisation code"), { target: { value: "001234" } });
     await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Confirm Featured upgrade" })); });
-    expect(confirmMock).toHaveBeenLastCalledWith("1234567890", { code: "1234567890abcdef" });
+    expect(confirmMock).toHaveBeenLastCalledWith("1234567890", { code: "001234" });
     expect(screen.getByText("Your featured upgrade payment is confirmed")).toBeInTheDocument();
   });
 

@@ -1,3 +1,4 @@
+import { consumeRateLimitBucket } from "@/lib/auth/signup-rate-limit";
 import type { PaymentWebhookInbox } from "@prisma/client";
 import { db } from "@/lib/db";
 import { dispatchListingNotifications } from "@/lib/email/listing-notifications";
@@ -36,7 +37,7 @@ type ListingCheckout = Exclude<HostedReturnContext, { kind: "dealer_subscription
 type ListingCheckoutType = "listing_payment" | "listing_and_featured" | "featured_upgrade";
 type TransactionResult =
   | { status: "challenge"; to: string; receiptId: string; listingId: string; code: string }
-  | { status: "code-invalid" }
+  | { status: "code-invalid" | "code-unavailable" }
   | { status: "waiting" | "review" }
   | { status: "confirmed"; listingId: string; notifications: ListingNotificationIntent[] };
 
@@ -266,7 +267,11 @@ async function completeListedHostedReturn(input: {
         return { status: "challenge", to: payerEmail,
           receiptId: inbox.id, listingId: context.listingId, code };
       }
-      if (!matchesReceiptCode(input.verification.code, code)) return { status: "code-invalid" };
+      const attempts = await consumeRateLimitBucket(tx, "featured-receipt-code", inbox.id, new Date(now), 60 * 60_000);
+      if (attempts.count > 3) return { status: "review" };
+      if (!matchesReceiptCode(input.verification.code, code)) {
+        return { status: attempts.count === 3 ? "review" : "code-invalid" };
+      }
     }
 
     const event = eventFromMinimizedPayload({
