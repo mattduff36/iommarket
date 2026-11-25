@@ -98,7 +98,7 @@ export function HostedPaymentConfirmation({ paymentJobRef }: { paymentJobRef: st
         {showReturnFallback ? <Button asChild><Link href={`/sell/checkout?listing=${encodeURIComponent(result.listingId)}`}>Continue to my listing</Link></Button> : <p className="text-sm text-text-secondary">Returning to your original itrader tab…</p>}
       </> : ["payer-code", "code-sent", "code-invalid", "code-unavailable"].includes(result.status) ? <>
         <h2 className="text-lg font-semibold">Authorise your Featured upgrade</h2>
-        <p className="text-sm text-text-secondary">The payment receipt uses a different email from your iTrader account. Send a code to the receipt email to apply this payment to your listing. Please don�t pay again.</p>
+        <p className="text-sm text-text-secondary">The payment receipt uses a different email from your iTrader account. Send a code to the receipt email to apply this payment to your listing. Please don’t pay again.</p>
         <Button type="button" variant="ghost" disabled={busy} onClick={() => verifyPayer("send")}>Send authorisation code</Button>
         {result.status === "code-sent" && <p>Check the receipt email for your code.</p>}
         {result.status === "code-invalid" && <p>That code did not match. Check the code in your email.</p>}
