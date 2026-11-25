@@ -60,6 +60,7 @@ export type SampleCheckoutView = {
   id: string; kind: SampleCheckoutKind; description: string; amountPence: number;
   currency: string; status: "PENDING" | "SUCCEEDED" | "FAILED" | "CANCELLED";
   attemptCount: number; returnUrl: string; expiresAt: string;
+  accountEmail?: string;
 };
 
 export function sampleCheckoutView(row: SampleCheckout): SampleCheckoutView {
@@ -147,5 +148,7 @@ export async function getSampleCheckout(id: string): Promise<SampleCheckoutView 
   const user = await getCurrentUser();
   if (!user) return null;
   const checkout = await db.sampleCheckout.findFirst({ where: { id, userId: user.id } });
-  return checkout ? sampleCheckoutView(checkout) : null;
+  if (!checkout) return null;
+  const view = sampleCheckoutView(checkout);
+  return checkout.kind === "featured_upgrade" ? { ...view, accountEmail: user.email } : view;
 }
