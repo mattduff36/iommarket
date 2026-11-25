@@ -35,8 +35,8 @@ async function openHostedReturn(): Promise<HostedReturnGate> {
   return { ok: true, context };
 }
 
-export async function confirmHostedListingPayment(paymentJobRef: string): Promise<{
-  status: "confirmed" | "waiting" | "review" | "sign-in";
+export async function confirmHostedListingPayment(paymentJobRef: string, verification?: "send" | { code: string }): Promise<{
+  status: "confirmed" | "waiting" | "review" | "sign-in" | "payer-code" | "code-sent" | "code-invalid" | "code-unavailable";
   listingId?: string;
   checkoutType?: "listing_payment" | "listing_and_featured" | "featured_upgrade" | "dealer_subscription";
 }> {
@@ -45,7 +45,13 @@ export async function confirmHostedListingPayment(paymentJobRef: string): Promis
   try {
     const gate = await openHostedReturn();
     if (!gate.ok) return { status: gate.status };
-    const result = await reconcileHostedReturn(gate.context, paymentJobRef);
+    if (verification !== undefined && verification !== "send" &&
+      (!verification || typeof verification.code !== "string" || !/^[a-f0-9]{16}$/i.test(verification.code))) {
+      return { status: "code-invalid" };
+    }
+    const result = verification === undefined
+      ? await reconcileHostedReturn(gate.context, paymentJobRef)
+      : await reconcileHostedReturn(gate.context, paymentJobRef, verification);
     if (result.status === "confirmed") {
       try {
         await reportVerifiedServicePurchase(paymentJobRef);

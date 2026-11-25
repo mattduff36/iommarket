@@ -556,7 +556,6 @@ export default async function DealerProfilePage({ params, searchParams }: Props)
               location={listing.region.name}
               meta={listing.category.name}
               featured={listing.featured}
-                condition={listing.condition}
               badge={marketplaceListingBadge({
                 status: listing.status,
                 featured: listing.featured,

@@ -5,9 +5,13 @@ const mocks = vi.hoisted(() => ({
   reconcile: vi.fn(),
   notify: vi.fn(),
   observe: vi.fn(),
+  send: vi.fn(),
+  limit: vi.fn(),
   capture: vi.fn(),
 }));
 
+vi.mock("@/lib/email/send-strict", () => ({ sendStrictResendEmail: mocks.send }));
+vi.mock("@/lib/rate-limit", () => ({ makeRateLimitKey: vi.fn(), checkRateLimit: mocks.limit }));
 vi.mock("@/lib/db", () => ({ db: { $transaction: mocks.transaction } }));
 vi.mock("@/lib/email/listing-notifications", () => ({ dispatchListingNotifications: mocks.notify }));
 vi.mock("@/lib/monitoring", () => ({ captureBusinessEvent: mocks.capture }));
@@ -201,6 +205,40 @@ describe("authenticated hosted return reconciliation", () => {
     }));
     expect(mocks.reconcile).not.toHaveBeenCalled();
     expect(tx.payment.updateMany).not.toHaveBeenCalled();
+  });
+
+  it("requires consent from the receipt mailbox for a different Featured payer", async () => {
+    useFeaturedCheckout();
+    inbox.customerEmailNorm = "payer@example.com";
+    mocks.limit.mockResolvedValue({ allowed: true });
+    await expect(reconcileHostedReturn(context, job)).resolves.toEqual({ status: "payer-code" });
+    expect(mocks.send).not.toHaveBeenCalled();
+    await expect(reconcileHostedReturn(context, job, "send")).resolves.toEqual({ status: "code-sent" });
+    const mail = mocks.send.mock.calls[0][0];
+    expect(mail.to).toBe("payer@example.com");
+    const code = mail.text.match(/enter ([a-f0-9]{16})/)[1];
+    await expect(reconcileHostedReturn(context, job, { code: "0".repeat(16) })).resolves.toEqual({ status: "code-invalid" });
+    await expect(reconcileHostedReturn({ ...context, issuedAt: context.issuedAt + 1 }, job, { code })).resolves.toEqual({ status: "code-invalid" });
+    expect(mocks.reconcile).not.toHaveBeenCalled();
+    await expect(reconcileHostedReturn(context, job, { code })).resolves.toMatchObject({ status: "confirmed" });
+  });
+
+  it("keeps receipts with an incorrect amount out of the payer authorisation flow", async () => {
+    useFeaturedCheckout();
+    inbox.customerEmailNorm = "payer@example.com";
+    inbox.amountPence = 499;
+    await expect(reconcileHostedReturn(context, job, "send")).resolves.toEqual({ status: "review" });
+    expect(mocks.send).not.toHaveBeenCalled();
+    expect(mocks.reconcile).not.toHaveBeenCalled();
+  });
+
+  it("refuses email delivery when the receipt send limit is unavailable", async () => {
+    useFeaturedCheckout();
+    inbox.customerEmailNorm = "payer@example.com";
+    mocks.limit.mockResolvedValue({ allowed: false, unavailable: true });
+    await expect(reconcileHostedReturn(context, job, "send")).resolves.toEqual({ status: "code-unavailable" });
+    expect(mocks.send).not.toHaveBeenCalled();
+    expect(mocks.reconcile).not.toHaveBeenCalled();
   });
 
   it.each(["PENDING", "PROCESSING"])("waits for %s webhook processing", async (status) => {

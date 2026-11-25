@@ -3,6 +3,7 @@ import { db } from "@/lib/db";
 import { dispatchListingNotifications } from "@/lib/email/listing-notifications";
 import type { ListingNotificationIntent } from "@/lib/listings/notification-intents";
 import { captureBusinessEvent } from "@/lib/monitoring";
+import { featuredReceiptCode, matchesReceiptCode, sendFeaturedReceiptCode, type ReceiptCodeInput } from "@/lib/payments/featured-receipt-code";
 import { recordHostedReturnObservation } from "@/lib/payments/checkout-attempts";
 import type { HostedReturnContext } from "@/lib/payments/hosted-return-context";
 import {
@@ -24,7 +25,7 @@ export type HostedReturnResult = {
   status: "confirmed";
   listingId?: string;
   checkoutType?: "listing_payment" | "listing_and_featured" | "featured_upgrade" | "dealer_subscription";
-} | { status: "waiting" | "review" };
+} | { status: "waiting" | "review" | "payer-code" | "code-sent" | "code-invalid" | "code-unavailable" };
 
 const MAX_AGE = 30 * 60_000;
 const CLOCK_SKEW_MS = 5_000;
@@ -34,6 +35,8 @@ class ClaimChangedError extends Error {}
 type ListingCheckout = Exclude<HostedReturnContext, { kind: "dealer_subscription" }>;
 type ListingCheckoutType = "listing_payment" | "listing_and_featured" | "featured_upgrade";
 type TransactionResult =
+  | { status: "challenge"; to: string; receiptId: string; listingId: string; code: string }
+  | { status: "code-invalid" }
   | { status: "waiting" | "review" }
   | { status: "confirmed"; listingId: string; notifications: ListingNotificationIntent[] };
 
@@ -55,11 +58,10 @@ function missingReferenceReceipt(input: {
   paymentJobRef: string;
   productCode: string;
   amountPence: number;
-  email: string;
   earliest: number;
   now: number;
 }): RippleMinimizedPayload | null {
-  const { inbox, paymentJobRef, productCode, amountPence, email, earliest, now } = input;
+  const { inbox, paymentJobRef, productCode, amountPence, earliest, now } = input;
   if (inbox.status !== "FAILED" || inbox.lastErrorCode !== "MISSING_REFERENCE") return null;
   if (!isMinimizedPayload(inbox.minimizedPayload)) return null;
   const minimized = inbox.minimizedPayload;
@@ -84,7 +86,6 @@ function missingReferenceReceipt(input: {
     inbox.linkType === "one-off" &&
     minimized.link_type === "one-off" &&
     Boolean(inbox.customerEmailNorm) &&
-    normalizeRippleEmail(inbox.customerEmailNorm ?? "") === normalizeRippleEmail(email) &&
     inbox.eventTimestamp.getTime() >= earliest &&
     inbox.eventTimestamp.getTime() <= now + CLOCK_SKEW_MS &&
     inbox.createdAt.getTime() >= earliest &&
@@ -103,6 +104,7 @@ function isClaimConflict(error: unknown) {
 export async function reconcileHostedReturn(
   context: HostedReturnContext,
   paymentJobRef: string,
+  verification?: ReceiptCodeInput,
 ): Promise<HostedReturnResult> {
   const now = Date.now();
   if (context.kind === "dealer_subscription") {
@@ -144,10 +146,19 @@ export async function reconcileHostedReturn(
       paymentJobRef,
       checkoutType,
       paymentType,
+      verification,
       productCode: product.code,
       amountPence: product.amountPence,
       now,
     });
+    if (result.status === "challenge") {
+      if (verification !== "send") return { status: "payer-code" };
+      try {
+        return { status: await sendFeaturedReceiptCode(result) ? "code-sent" : "code-unavailable" };
+      } catch {
+        return { status: "code-unavailable" };
+      }
+    }
     if (result.status === "confirmed" && result.notifications.length > 0) {
       await dispatchReturnNotifications(result.notifications, checkoutType);
     }
@@ -169,6 +180,7 @@ async function completeListedHostedReturn(input: {
   paymentJobRef: string;
   checkoutType: ListingCheckoutType;
   paymentType: "LISTING" | "FEATURED";
+  verification?: ReceiptCodeInput;
   productCode: string;
   amountPence: number;
   now: number;
@@ -237,11 +249,25 @@ async function completeListedHostedReturn(input: {
       paymentJobRef,
       productCode,
       amountPence,
-      email: context.email,
       earliest: context.issuedAt - CLOCK_SKEW_MS,
       now,
     });
     if (!minimized) return { status: "review" };
+
+    const payerEmail = normalizeRippleEmail(inbox.customerEmailNorm ?? "");
+    const differentPayer = payerEmail !== normalizeRippleEmail(context.email);
+    if (differentPayer) {
+      if (checkoutType !== "featured_upgrade" || !/^[^\s@,;<>]+@[^\s@,;<>]+\.[^\s@,;<>]+$/.test(payerEmail)) {
+        return { status: "review" };
+      }
+      const code = featuredReceiptCode([context.userId, context.paymentId, context.listingId,
+        context.merchantReference, context.issuedAt, inbox.id, paymentJobRef, payerEmail]);
+      if (!input.verification || input.verification === "send") {
+        return { status: "challenge", to: payerEmail,
+          receiptId: inbox.id, listingId: context.listingId, code };
+      }
+      if (!matchesReceiptCode(input.verification.code, code)) return { status: "code-invalid" };
+    }
 
     const event = eventFromMinimizedPayload({
       minimized: { ...minimized, merchant_reference: context.merchantReference },
@@ -276,7 +302,7 @@ async function completeListedHostedReturn(input: {
         type: "VERIFIED_WEBHOOK",
         evidenceId: inbox.id,
         snapshot: {
-          correlation: "signed_hosted_return_and_verified_webhook",
+          correlation: differentPayer ? "payer_mailbox_consent_and_verified_webhook" : "signed_hosted_return_and_verified_webhook",
           webhookOmittedMerchantReference: true,
           inboxId: inbox.id,
           paymentReference: paymentJobRef,

@@ -30,7 +30,8 @@ export function HostedPaymentConfirmation({ paymentJobRef }: { paymentJobRef: st
   const [result, setResult] = useState<Awaited<ReturnType<typeof confirmHostedListingPayment>>>({ status: "waiting" });
   const [handoffEvent, setHandoffEvent] = useState<PaymentReturnEvent | null>(null);
   const showReturnFallback = useCheckoutWindowHandoff(handoffEvent);
-  const [, startTransition] = useTransition();
+  const [receiptCode, setReceiptCode] = useState("");
+  const [busy, startTransition] = useTransition();
 
   useEffect(() => {
     let stopped = false;
@@ -66,6 +67,21 @@ export function HostedPaymentConfirmation({ paymentJobRef }: { paymentJobRef: st
     return () => { stopped = true; if (timer) clearTimeout(timer); };
   }, [paymentJobRef]);
 
+  function verifyPayer(input: "send" | { code: string }) {
+    startTransition(async () => {
+      try {
+        const next = await confirmHostedListingPayment(paymentJobRef, input);
+        setResult(next.status === "waiting" ? { status: "code-unavailable" } : next);
+        if (next.status === "confirmed") {
+          trackMarketplaceEvent("checkout_completed", { context: "featured" });
+          setHandoffEvent(confirmedReturnEvent(next));
+        }
+      } catch {
+        setResult({ status: "code-unavailable" });
+      }
+    });
+  }
+
   return (
     <div className="space-y-4 rounded-lg border border-border bg-surface/60 p-4" role="status" aria-live="polite">
       {result.status === "confirmed" && result.checkoutType === "dealer_subscription" ? <>
@@ -80,6 +96,24 @@ export function HostedPaymentConfirmation({ paymentJobRef }: { paymentJobRef: st
         <h2 className="text-lg font-semibold">Your listing payment is confirmed</h2>
         <p className="text-sm text-text-secondary">Your payment has been linked to your listing. Continue to see its status and any remaining steps.</p>
         {showReturnFallback ? <Button asChild><Link href={`/sell/checkout?listing=${encodeURIComponent(result.listingId)}`}>Continue to my listing</Link></Button> : <p className="text-sm text-text-secondary">Returning to your original itrader tab…</p>}
+      </> : ["payer-code", "code-sent", "code-invalid", "code-unavailable"].includes(result.status) ? <>
+        <h2 className="text-lg font-semibold">Authorise your Featured upgrade</h2>
+        <p className="text-sm text-text-secondary">The payment receipt uses a different email from your iTrader account. Send a code to the receipt email to apply this payment to your listing. Please don�t pay again.</p>
+        <Button type="button" variant="ghost" disabled={busy} onClick={() => verifyPayer("send")}>Send authorisation code</Button>
+        {result.status === "code-sent" && <p>Check the receipt email for your code.</p>}
+        {result.status === "code-invalid" && <p>That code did not match. Check the code in your email.</p>}
+        {result.status === "code-unavailable" && <p>Verification is temporarily unavailable. Try again or contact support.</p>}
+        <form className="grid max-w-sm gap-2" onSubmit={(event) => {
+          event.preventDefault();
+          verifyPayer({ code: receiptCode.trim() });
+        }}>
+          <label htmlFor="receipt-code">Authorisation code</label>
+          <input id="receipt-code" className="rounded border border-border bg-surface px-3 py-2"
+            autoComplete="one-time-code" value={receiptCode} maxLength={16} pattern="[0-9A-Fa-f]{16}" required
+            onChange={(event) => setReceiptCode(event.target.value)} />
+          <Button disabled={busy} type="submit">Confirm Featured upgrade</Button>
+        </form>
+        <Link href="/contact" className="text-sm underline">Get help with my payment</Link>
       </> : result.status === "waiting" ? <>
         <h2 className="flex items-center gap-2 text-lg font-semibold"><BrandedSpinner size="sm" />Confirming your payment</h2>
         <p className="text-sm text-text-secondary">We’re checking your payment confirmation. This can take a moment. Please don’t pay again.</p>

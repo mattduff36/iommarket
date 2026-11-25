@@ -16,7 +16,6 @@ import { NEEDS_MANUAL_REVIEW_BADGE } from "@/lib/preview-packs/review-labels";
 
 export interface ListingCardProps extends React.HTMLAttributes<HTMLElement> {
   title: string;
-  condition?: "NEW" | "USED";
   price: number;
   currency?: string;
   photo?: ListingPhotoSource;
@@ -47,7 +46,6 @@ const ListingCard = React.forwardRef<HTMLElement, ListingCardProps>(
   (
     {
       title,
-      condition,
       price,
       currency = "£",
       photo,
@@ -89,7 +87,6 @@ const ListingCard = React.forwardRef<HTMLElement, ListingCardProps>(
         )}
         {...props}
       >
-        {condition && <span className="px-3 pt-2 text-xs font-semibold uppercase text-text-secondary">{condition === "NEW" ? "New" : "Used"}</span>}
         {href ? <CardOverlayLink href={href} label={title} /> : null}
         {/* Image container with overlay gradient */}
         <div className="pointer-events-none relative aspect-[4/3] w-full overflow-hidden bg-graphite-800">
