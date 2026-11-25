@@ -916,12 +916,16 @@ describe("createDealerSubscription", () => {
     vi.unstubAllEnvs();
   });
 
-  it("allows an eligible free LIVE listing to buy a standalone Featured upgrade", async () => {
+  it.each([
+    { status: "LIVE", claim: null },
+    { status: "PENDING", claim: null },
+    { status: "LIVE", claim: { id: "claim-1", userId: "user_123" } },
+  ])("allows a free $status listing to buy Featured with claim $claim", async ({ status, claim }) => {
     mockDb.listing.findUnique.mockResolvedValue({
       id: "caaaaaaaaaaaaaaaaaaaaaaaa", userId: "user_123", dealerId: null,
-      status: "LIVE", featured: false, title: "Free live listing",
+      status, featured: false, title: "Free live listing",
     });
-    mockDb.freeListingClaim.findUnique.mockResolvedValue({ id: "claim-1", userId: "user_123" });
+    mockDb.freeListingClaim.findUnique.mockResolvedValue(claim);
     mockDb.payment.findFirst.mockResolvedValue(null);
     mockDb.payment.create.mockImplementation(async ({ data }) => ({
       id: "pending-pay",

@@ -650,19 +650,6 @@ async function upgradeFeaturedBody(listingId: string) {
   if (listing.featured) {
     return { error: "This listing is already featured" };
   }
-  if (listing.dealerId === null) {
-    const { canSkipListingPayment } = await import("@/lib/listings/payment-skip");
-    const listingEntitlement = await canSkipListingPayment(db, {
-      listingId: listing.id, userId: user.id, dealerId: null,
-    });
-    if (!listingEntitlement.skip) {
-      return {
-        error:
-          "Free listings cannot be featured. Choose a paid listing plan to unlock featured upgrades.",
-      };
-    }
-  }
-
   try {
     const pricing = await getMarketplacePricing();
     const consumedEntitlement = await db.payment.findFirst({ where: {
