@@ -161,7 +161,7 @@ function pinnedHttpsDownload(input: Parameters<PinnedImageTransport>[0]) {
         // DW Cars' host signals missing files with this exact error-page redirect.
         // Classify the original response only; never request the redirect target.
         if (status === 302 && input.url.hostname === "www.dwcars.info" &&
-            /^\/images\/carpix\/details\/[a-zA-Z0-9_-]+\.jpg$/.test(input.url.pathname) &&
+            /^\/images\/carpix\/(?:details\/[a-zA-Z0-9_-]+|listings\/horizontal_[0-9]+)\.jpg$/.test(input.url.pathname) &&
             response.headers.location === "https://freeola.com/errors/e.php?ec=404") {
           finish(new RemoteImageUnavailableError(404));
           return;

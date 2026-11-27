@@ -111,10 +111,10 @@ describe("SSRF-001 safe remote image downloads", () => {
     expect(fixture.request.destroy).toHaveBeenCalledOnce();
   });
 
-  it("recognises DW Cars' exact hosted missing-photo response without following it", async () => {
+  it.each(["details/slider_06850.jpg", "listings/horizontal_06848.jpg"])("recognises the DW Cars missing-photo response for %s without following it", async path => {
     const fixture = transportFixture(302, { location: "https://freeola.com/errors/e.php?ec=404" });
     const pending = downloadSafeRemoteImage({
-      url: "https://www.dwcars.info/images/carpix/details/slider_06733.jpg", lookupImpl: publicLookup,
+      url: `https://www.dwcars.info/images/carpix/${path}`, lookupImpl: publicLookup,
     });
     const rejected = expect(pending).rejects.toBeInstanceOf(RemoteImageUnavailableError);
     await fixture.ready;

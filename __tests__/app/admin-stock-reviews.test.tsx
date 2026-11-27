@@ -209,7 +209,7 @@ describe("admin stock reviews", () => {
         report: null,
         binding: { dealer: { id: "dealer-3", name: "No Report Motors" } },
       }),
-    ]);
+    ], "results");
 
     expect(screen.getByText("No report was saved.")).toBeInTheDocument();
     expect(screen.getByText("Stock sync job failed.")).toBeInTheDocument();
@@ -243,7 +243,7 @@ describe("admin stock reviews", () => {
     ], [], [
       job({ id: "queued-job", status: "QUEUED", kind: "SCRAPE" }),
       job({ id: "leased-job", status: "LEASED", kind: "APPLY", binding: { dealer: { id: "dealer-4", name: "Processing Cars" } } }),
-    ]);
+    ], "results");
 
     expect(screen.queryByText("No change")).not.toBeInTheDocument();
     expect(screen.queryByText("Nothing to approve. Listings were not changed.")).not.toBeInTheDocument();
@@ -266,7 +266,7 @@ describe("admin stock reviews", () => {
   it("shows a failed report and an empty history", async () => {
     await renderPage([], [
       report({ id: "failed-report", status: "FAILED", inventoryCount: 0, failureReason: "source-failed", plan: { actions: [] } }),
-    ]);
+    ], [], "results");
 
     expect(screen.getByText("Failed").parentElement).toHaveTextContent("Failed · 0 vehicles");
     expect(screen.getByText("One or more website sections could not be checked.")).toBeInTheDocument();
@@ -286,13 +286,14 @@ describe("admin stock reviews", () => {
     expect(jobFindMany).not.toHaveBeenCalled();
   });
 
-  it("keeps a failed apply visible alongside its still-approved report", async () => {
+  it("keeps the approved review in Active and routes its failed attempt to Results", async () => {
     await renderPage([report({ id: "approved", status: "APPROVED" })], [], [
       job({ kind: "APPLY", status: "FAILED", reportId: "approved", report: { id: "approved", status: "APPROVED" }, error: "Stock sync job failed." }),
     ]);
-    expect(screen.getAllByText("Apply failed")).toHaveLength(2);
+    expect(screen.getAllByText("Apply failed")).toHaveLength(1);
+    expect(screen.getByRole("link", { name: "Results (1)" })).toHaveAttribute("href", "/admin/stock-reviews?history=results#stock-review-results");
     expect(screen.getByText("Open this review to retry the approved changes or run a fresh check.")).toBeInTheDocument();
-    expect(screen.getByText("Stock sync job failed.")).toBeInTheDocument();
+    expect(screen.queryByText("Stock sync job failed.")).not.toBeInTheDocument();
   });
 
   it("matches a scrape job to its report by scrapeRunId without claiming no report exists", async () => {
