@@ -9,6 +9,7 @@ interface DealerLogoProps {
   dealerName: string;
   className?: string;
   imageClassName?: string;
+  fallbackText?: string;
 }
 
 export function DealerLogo({
@@ -16,6 +17,7 @@ export function DealerLogo({
   dealerName,
   className,
   imageClassName,
+  fallbackText,
 }: DealerLogoProps) {
   const [failedLogoUrl, setFailedLogoUrl] = useState<string | null>(null);
   const displayUrl = logoUrl && logoUrl.includes("://res.cloudinary.com/")
@@ -24,7 +26,7 @@ export function DealerLogo({
   const hasUsableLogo = Boolean(displayUrl && failedLogoUrl !== displayUrl);
 
   return (
-    <div
+    <span
       className={cn(
         "relative flex aspect-square shrink-0 items-center justify-center overflow-hidden bg-neon-blue-500/10 text-xl font-bold text-neon-blue-400",
         className,
@@ -53,9 +55,9 @@ export function DealerLogo({
           </picture>
         )
       ) : (
-        <span aria-label={`No logo for ${dealerName}`}>{dealerName.charAt(0).toUpperCase() || "?"}</span>
+        <span aria-label={`No logo for ${dealerName}`}>{fallbackText || dealerName.charAt(0).toUpperCase() || "?"}</span>
       )}
-    </div>
+    </span>
   );
 }
 

@@ -4,7 +4,7 @@ import { useRouter } from "next/navigation";
 import { useStockSnapshotRefresh } from "./use-stock-snapshot";
 import { enqueueDealerStockScrape } from "@/actions/admin/dealer-stock-sync";
 import type { StockWorkerControl } from "./worker-context";
-export type StockDealer = { id: string; name: string };
+export type StockDealer = { id: string; name: string; logoUrl?: string | null };
 export function useDealerSelection(dealers: StockDealer[], controls: StockWorkerControl, hasQueuedWork = false, queuedJobIds: string[] = []) {
   const router = useRouter();
   const reloadSnapshot = useStockSnapshotRefresh();

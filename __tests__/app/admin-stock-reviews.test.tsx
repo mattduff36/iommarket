@@ -306,13 +306,13 @@ describe("admin stock reviews", () => {
 it("excludes preview profiles from unavailable dealers and preserves real reasons", async () => {
   profileFindMany.mockResolvedValueOnce([
     {id:"preview",name:"Preview pack",isAdminPreview:true,user:{disabledAt:null},stockSourceBinding:null},
-    {id:"ready",name:"Ready dealer",tier:"PRO",isAdminPreview:false,user:{disabledAt:null},stockSourceBinding:{verifiedAt:when}},
+    {id:"ready",name:"Franklin’s Ltd | Vehicle Sales & Service",logoUrl:"https://example.com/franklins.png",tier:"PRO",isAdminPreview:false,user:{disabledAt:null},stockSourceBinding:{verifiedAt:when}},
     {id:"setup",name:"Setup dealer",tier:"PRO",isAdminPreview:false,user:{disabledAt:null},stockSourceBinding:null},
     {id:"unverified",name:"Unverified dealer",tier:"PRO",isAdminPreview:false,user:{disabledAt:null},stockSourceBinding:{verifiedAt:null}},
     {id:"disabled",name:"Disabled dealer",tier:"PRO",isAdminPreview:false,user:{disabledAt:when},stockSourceBinding:null},
   ]);
   await renderPage([]);
-  const dealers = [{id:"ready",name:"Ready dealer"}];
+  const dealers = [{id:"ready",name:"Franklin’s Ltd",logoUrl:"https://example.com/franklins.png"}];
   expect(pickerProps).toHaveBeenLastCalledWith(expect.objectContaining({dealers, unavailable:[
     {id:"setup",name:"Setup dealer",reason:"Scraper not configured"},
     {id:"unverified",name:"Unverified dealer",reason:"Source awaiting verification"},
