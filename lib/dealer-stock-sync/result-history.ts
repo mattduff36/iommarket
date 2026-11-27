@@ -10,6 +10,7 @@ const noChangeBase = z.object({
   review: z.object({ availability: z.enum(["available", "reserved", "sold", "unknown"]), flags: z.array(z.string()) }).optional(),
 });
 const noChangeAction = z.union([
+  noChangeBase.extend({ kind: z.literal("missing_once"), sourceIdentityKey: z.string().min(1), absenceCount: z.literal(1) }),
   noChangeBase.extend({ kind: z.literal("unchanged"), sourceIdentityKey: z.string().min(1) }),
   noChangeBase.extend({ kind: z.literal("blocked"), reason: z.string().min(1), section: z.enum(["new", "missing", "change", "other"]) })
     .refine(action => !isStockDraftOwnedAction({ ...action, review: undefined }) &&

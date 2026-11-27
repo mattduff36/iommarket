@@ -8,37 +8,34 @@ import Link from "@/components/navigation/link";
 import { changeStockResultHistory } from "@/actions/admin/stock-result-history";
 import type { ResultHistoryEntry, ResultHistoryState } from "@/lib/dealer-stock-sync/result-history";
 
-export type StockHistoryTab = ResultHistoryState | "results";
-type HistoryRow = ResultHistoryEntry & { tab?: StockHistoryTab };
-const inTab = (entry: HistoryRow, tab: StockHistoryTab) => (entry.tab ?? entry.state) === tab;
-const History = createContext<{ entries: HistoryRow[]; view: StockHistoryTab }>({ entries: [], view: "active" });
+const History = createContext<{ entries: ResultHistoryEntry[]; view: ResultHistoryState }>({ entries: [], view: "active" });
 const BUTTON = "min-h-11 rounded-md border border-border px-3 text-sm hover:bg-surface-elevated disabled:opacity-50";
 
 export function StockResultHistory({ entries, view, children }: {
-  entries: HistoryRow[]; view: StockHistoryTab; children: ReactNode;
+  entries: ResultHistoryEntry[]; view: ResultHistoryState; children: ReactNode;
 }) {
-  const visible = entries.filter(entry => inTab(entry, view));
+  const visible = entries.filter(entry => entry.state === view);
   return <History.Provider value={{ entries, view }}>
     <div className="flex flex-wrap items-center gap-3">
       <h2 id="stock-review-results" className="text-xl font-semibold text-text-primary">Results</h2>
       <nav aria-label="Result history" className="flex flex-wrap gap-2">
-        {(["active", "results", "archived", "deleted"] as const).map(state => <Link key={state}
+        {(["active", "archived", "deleted"] as const).map(state => <Link key={state}
           href={`/admin/stock-reviews?history=${state}#stock-review-results`}
           aria-current={view === state ? "page" : undefined}
           className={BUTTON + " inline-flex items-center " + (view === state ? "border-neon-blue-500 text-neon-blue-400" : "text-text-primary")}>
-          {{active:"Active",results:"Results",archived:"Archived",deleted:"Deleted"}[state]} ({entries.filter(entry => inTab(entry, state)).length})
+          {{active:"Needs attention",archived:"Archived",deleted:"Deleted"}[state]} ({entries.filter(entry => entry.state === state).length})
         </Link>)}
       </nav>
     </div>
     <p className="text-sm text-text-secondary">Applied and no change results are archived automatically.</p>
-    {visible.length === 0 ? <p className="text-sm text-text-secondary">{view === "results" ? "No recent runs." : `No ${view} results.`}</p> : null}
+    {visible.length === 0 ? <p className="text-sm text-text-secondary">{view === "active" ? "Nothing needs attention." : `No ${view} results.`}</p> : null}
     {children}
   </History.Provider>;
 }
 
 export function StockResultVisibility({ ids, children }: { ids: string[]; children: ReactNode }) {
   const { entries, view } = useContext(History);
-  return ids.length > 0 && !ids.some(id => entries.some(entry => entry.id === id && inTab(entry, view))) ? null : children;
+  return ids.length > 0 && !ids.some(id => entries.some(entry => entry.id === id && entry.state === view)) ? null : children;
 }
 
 export function StockResultActions({ id }: { id: string }) {

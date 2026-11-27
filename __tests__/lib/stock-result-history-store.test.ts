@@ -32,7 +32,7 @@ it("never hides active work even if it has an old history event",async()=>{
   expect(rows.every(row=>row.state==="active"&&!row.manageable)).toBe(true);
 });
 
-it("archives completed apply jobs even when their report is outside the recent report window", async () => {
-  const rows = await loadResultHistory([], [{id:"apply",status:"SUCCEEDED",reportId:"older-report",report:{status:"APPLIED"}}]);
+it.each(["SUCCEEDED", "FAILED"])("archives a %s attempt once its approved report has been applied", async status => {
+  const rows = await loadResultHistory([], [{id:"apply",status,reportId:"older-report",report:{status:"APPLIED"}}]);
   expect(rows[0]).toMatchObject({state:"archived",manageable:true});
 });

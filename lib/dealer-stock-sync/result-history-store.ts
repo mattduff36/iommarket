@@ -25,7 +25,7 @@ export async function loadResultHistory(
     }),
     ...jobs.map(row => {
       const manageable = ["SUCCEEDED", "FAILED", "CANCELLED"].includes(row.status);
-      const status = row.status === "SUCCEEDED" && row.report?.status === "APPLIED" ? "APPLIED" : row.status;
+      const status = ["SUCCEEDED", "FAILED"].includes(row.status) && row.report?.status === "APPLIED" ? "APPLIED" : row.status;
       return { id: row.id, kind: "job" as const, manageable,
         state: manageable ? resultHistoryState(status, latest.get(row.id) ?? null) : "active" as const };
     }),
