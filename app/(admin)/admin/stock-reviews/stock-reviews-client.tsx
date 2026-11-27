@@ -6,8 +6,9 @@ import { isStockReviewSnapshot } from "./snapshot-validation";
 import { stockSnapshotPollInterval } from "./snapshot-poll-interval";
 import { useStockSnapshot, StockSnapshotRefreshProvider } from "./use-stock-snapshot";
 import { canRefreshStockPage } from "./refresh-guard";
-import { StockResultHistory, StockResultVisibility, StockResultActions, type StockHistoryTab } from "./result-history";
+import { StockResultHistory, StockResultVisibility, StockResultActions } from "./result-history";
 import { stockStatusColour, STOCK_STATUS_BADGE } from "@/lib/dealer-stock-sync/status-colour";
+import type { ResultHistoryState } from "@/lib/dealer-stock-sync/result-history";
 import Link from "@/components/navigation/link";
 import { AdminPageHeader } from "@/components/admin/admin-page-header";
 import { ReportableError } from "@/components/monitoring/reportable-error";
@@ -175,17 +176,12 @@ export function StockReviewsClient({ initial, query, pairing, offlineStatus, ora
   const reportsById = new Map(reports.map(report => [report.id, report]));
   const reportsByRun = new Map(reports.map(report => [report.scrapeRunId, report]));
   const dealers = dealerGroups(outstanding, recentReports, jobs);
+  const linkedId = typeof query.report === "string" ? query.report.replace(/^job:/, "") : undefined;
+  const linkedState = historyEntries.find(entry => entry.id === linkedId)?.state;
+  const historyView: ResultHistoryState = query.history === "archived" || query.history === "deleted" ? query.history : linkedState ?? "active";
   const visibleJobs = dealers.flatMap(dealer => dealer.jobs);
   const visibleJobIds = new Set(visibleJobs.map(job => job.id));
-  const recentIds = new Set(recentReports.map(report => report.id));
-  const shownHistory = historyEntries.filter(entry => entry.kind === "report" || visibleJobIds.has(entry.id)).map(entry => ({
-    ...entry,
-    tab: entry.state === "active" && (entry.kind === "job" || (recentIds.has(entry.id) && entry.manageable))
-      ? "results" as const : entry.state,
-  }));
-  const linked = shownHistory.find(entry => (entry.kind === "job" ? `job:${entry.id}` : entry.id) === query.report);
-  const historyView: StockHistoryTab = query.history === "archived" || query.history === "deleted" || query.history === "results"
-    ? query.history : linked?.tab ?? "active";
+  const shownHistory = historyEntries.filter(entry => entry.kind === "report" || visibleJobIds.has(entry.id));
 
   const liveJobs = jobs.map(job => {
     const reportId = job.reportId ?? job.report?.id;
@@ -194,7 +190,7 @@ export function StockReviewsClient({ initial, query, pairing, offlineStatus, ora
       ?? shownHistory.find(entry => entry.kind === "job" && entry.id === job.id);
     const resultId = entry?.kind === "job" ? `job:${entry.id}` : entry?.id;
     return {
-      resultHref: entry && resultId ? `/admin/stock-reviews?history=${entry.tab}&report=${encodeURIComponent(resultId)}#stock-review-detail` : undefined,
+      resultHref: entry && resultId ? `/admin/stock-reviews?history=${entry.state}&report=${encodeURIComponent(resultId)}#stock-review-detail` : undefined,
       id: job.id, dealerName: job.binding.dealer.name, kind: job.kind, status: job.status,
       reportStatus: report?.status ?? job.report?.status ?? null,
       reviewListingCount: report ? stockReviewListingCount(report.plan) : null,
@@ -202,12 +198,8 @@ export function StockReviewsClient({ initial, query, pairing, offlineStatus, ora
     };
   });
   const { wide, selectedId, toggle } = useStockReviewLayout(typeof query.report === "string" ? query.report : null, historyView);
-  const selectedJob = visibleJobs.find(job => `job:${job.id}` === selectedId && shownHistory.some(entry => entry.id === job.id && entry.tab === historyView));
-  const reportId = selectedJob ? selectedJob.reportId ?? selectedJob.report?.id ?? reportsByRun.get(selectedJob.id)?.id : selectedId;
-  const reportEntry = shownHistory.find(row => row.id === reportId && row.kind === "report");
-  const jobEntry = selectedJob && shownHistory.find(row => row.id === selectedJob.id && row.kind === "job");
-  const selectedReport = reportId && reportEntry && (reportEntry.tab === historyView || reportEntry.state === jobEntry?.state)
-    ? reportsById.get(reportId) : undefined;
+  const selectedJob = visibleJobs.find(job => `job:${job.id}` === selectedId && historyEntries.some(entry => entry.id === job.id && entry.state === historyView));
+  const selectedReport = [...outstanding, ...recentReports].find(report => report.id === (selectedJob ? selectedJob.reportId ?? selectedJob.report?.id ?? reportsByRun.get(selectedJob.id)?.id : selectedId) && historyEntries.some(entry => entry.id === report.id && entry.state === historyView));
   const selectedResult = selectedJob ?? selectedReport;
   const [chosen, setChosen] = useState<{ key: string; indexes: number[] }>({ key: "", indexes: [] });
   const selectionKey = selectedReport ? `${selectedReport.id}:${selectedReport.fingerprint}` : "";

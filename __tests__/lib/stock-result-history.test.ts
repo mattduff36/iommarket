@@ -2,11 +2,12 @@ import { describe, expect, it } from "vitest";
 import { canManageStockReport, isGenuineNoChangeReview, resultHistoryState } from "@/lib/dealer-stock-sync/result-history";
 
 describe("stock result history policy", () => {
-  it("requires a valid genuine no-change plan and does not confuse manageable missing observations with no work", () => {
+  it("requires a valid genuine no-change plan including first-absence observations", () => {
     const unchanged = { kind: "unchanged", sourceIdentityKey: "sourceVehicleId:same", listingId: null };
     const sold = { kind: "blocked", sourceIdentityKey: "sourceVehicleId:sold", listingId: null, reason: "source-sold", section: "new" };
+    const firstAbsence = { ...unchanged, kind: "missing_once", absenceCount: 1 };
     for (const status of ["PENDING_REVIEW", "SUPERSEDED", "REJECTED"]) {
-      for (const actions of [[], [unchanged], [sold], [unchanged, sold]]) {
+      for (const actions of [[], [unchanged], [sold], [unchanged, sold], [unchanged, firstAbsence], [unchanged, sold, firstAbsence]]) {
         const plan = { actions };
         expect(isGenuineNoChangeReview(status, plan)).toBe(true);
         for (const event of [null, "RESULT_ARCHIVED", "RESULT_RESTORED"]) expect(resultHistoryState(status, event, plan)).toBe("archived");
