@@ -1,6 +1,6 @@
 # Dealer website stock sync
 
-The feature is deployed to preview at `https://itrader.dev`, with its additive migration applied to the preview database. Production remains disabled. Admin pages and the Friday cron only enqueue jobs; a separate worker must be running to scrape websites and apply approved changes.
+Administrators queue dealer scrapes from the website. A connected worker processes the queue and applies approved changes.
 
 Enabling a dealer binding does not mean sync is active. The dealers screen says so. If the worker process is absent, queued jobs stay queued.
 
@@ -17,15 +17,11 @@ Both commands refuse to start unless:
 
 The shared environment guard checks the site origin, authentication project, deployment target and every configured database URL. Preview must use project `syneonzucehwlghqmfbg`; production must use `snlqivvogfqesxpbjiei`. Conflicting `DATABASE_URL`, `POSTGRES_URL` and `POSTGRES_URL_NON_POOLING` values are rejected. Local testing requires `DEALER_STOCK_SYNC_ISOLATED_LOCAL=1` and loopback connections.
 
-Production defaults off: leave `DEALER_STOCK_SYNC_PRODUCTION_ENABLED` unset or `0` until preview acceptance. The Actions menu item stays visible and disabled with an explanatory tooltip. Server actions, cron and workers enforce the same flag. `DEALER_STOCK_SYNC_ENABLED=0` disables either environment. The disabled production detail page returns before querying the new tables.
+Production defaults off: leave `DEALER_STOCK_SYNC_PRODUCTION_ENABLED` unset or `0` until preview acceptance. The Actions menu item stays visible and disabled with an explanatory tooltip. Server actions and workers enforce the same flag. `DEALER_STOCK_SYNC_ENABLED=0` disables either environment. The disabled production detail page returns before querying the new tables.
 
 The worker reuses the existing dealer stock pipeline for the bound registry key only. Shared orchestration uses site/platform-specific connectors. Approved apply jobs update price and mileage, create LIVE listings with owned images, a stable slug and normal expiry, or take down a listing absent twice. They do not call the production pack audit apply.
 
-## Weekly queue
-
-Vercel cron calls `GET /api/cron/dealer-stock-sync` at Friday 05:00 and 06:00 UTC. The route checks that the Europe/London clock is Friday at 06:00, then enqueues one scrape per enabled, verified, live dealer binding. The other hour is a no-op because each binding has one weekly key. The cron never approves or applies a plan.
-
-The watch worker also checks this schedule, so preview does not depend on Vercel's production-only cron. Start it before Friday 06:00 UK time. If it is stopped for the entire 06:00-06:59 window, use an on-demand check. The user selected this machine for temporary preview testing; a permanent supervised host is still needed after acceptance.
+## Manual queue
 
 Provide an explicitly reviewed environment file or exported variables; the worker never silently loads `.env.local`. Alongside the flags, supply the matching `NEXT_PUBLIC_APP_URL`, `NEXT_PUBLIC_SUPABASE_URL`, database connection(s), `SUPABASE_DB_CA_CERT` and existing image-provider settings. Never copy production credentials into the preview worker.
 
@@ -83,7 +79,7 @@ Active jobs, approved work and actionable reviews awaiting a decision cannot be 
 
 An approved report keeps its processing state and recovery actions even when the failed job's history notification is archived or deleted. Recovery looks up retained attempts directly, independently of the recent-results limit.
 
-Use **Retry approved changes** after a failed or cancelled APPLY attempt. The server rechecks admin access, the saved approval, the current dealer/source and stock fingerprint under the existing binding/dealer/listing locks. It queues one new attempt with a key tied to the failed attempt. The new payload contains no old staged-photo receipts; the original attempt stays in history. Manual recovery does not require weekly scheduling to be enabled.
+Use **Retry approved changes** after a failed or cancelled APPLY attempt. The server rechecks admin access, the saved approval, the current dealer/source and stock fingerprint under the existing binding/dealer/listing locks. It queues one new attempt with a key tied to the failed attempt. The new payload contains no old staged-photo receipts; the original attempt stays in history.
 
 Queued or leased work for the same dealer blocks another recovery attempt. A changed or incompatible approval requires **Run a fresh check**, which uses the normal scrape queue and requires review and approval of its new results. Neither recovery action directly changes listings, resets a failed job, changes the frozen approval, or applies the unapproved remainder. Normal successful apply still restores that remainder for review.
 

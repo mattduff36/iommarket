@@ -82,7 +82,7 @@ export default async function DealerStockSyncPage({
         }
       />
       <p className="max-w-3xl rounded-md border border-border bg-surface-secondary px-4 py-3 text-sm text-text-secondary">
-        Weekly checks run Friday at 06:00 UK time when processing is active. Changes always wait for approval. Vehicles missing from two complete checks are proposed for removal.
+        An administrator starts each stock check. Changes always wait for approval. Vehicles missing from two complete checks are proposed for removal.
       </p>
       {binding?.jobs[0] ? <p className="text-sm text-text-secondary" role="status">
         Latest job: {stockSyncStatus(binding.jobs[0].status)}. {binding.jobs[0].error}

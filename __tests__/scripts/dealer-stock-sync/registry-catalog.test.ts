@@ -11,7 +11,6 @@ describe("dealer stock registry catalog", () => {
     expect(DEALER_STOCK_REGISTRY_OPTIONS.map((option) => option.key)).toEqual(expected);
     const bundled = [
       "actions/admin/dealer-stock-sync.ts",
-      "app/api/cron/dealer-stock-sync/route.ts",
       "lib/dealer-stock-sync/enqueue.ts",
       "app/(admin)/admin/dealers/[dealerId]/stock-sync/page.tsx",
     ]

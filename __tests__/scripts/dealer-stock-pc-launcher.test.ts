@@ -173,8 +173,7 @@ describe("manual dealer stock worker", () => {
       manual: true, once: false, isStopped: stop.isStopped,
       write: () => undefined, pause: async () => undefined,
       tick: () => processTick({
-        env: previewFile(), manual: true, isStopped: stop.isStopped,
-        enqueueWeekly: async () => { throw new Error("Must not schedule"); },
+        env: previewFile(), isStopped: stop.isStopped,
         leaseOneJob, write: () => undefined,
         runJob: async () => { stop.requestStop(); await Promise.resolve(); completed = true; },
       }),
@@ -202,38 +201,31 @@ describe("manual dealer stock worker", () => {
     }
   });
 
-  it("skips the weekly scheduler and stops after the current job", async () => {
+  it("processes queued work and stops after the current job", async () => {
     expect(workerMode(["--watch", "--manual"])).toMatchObject({ once: false, manual: true });
     expect(workerMode(["--watch"])).toMatchObject({ manual: false });
     expect(workerMode(["--once", "--watch"])).toHaveProperty("error");
 
-    const enqueueWeekly = vi.fn(async () => undefined);
     const leaseOneJob = vi.fn(async () => ({ id: "job-1", owner: "lease-owner" }));
     const runJob = vi.fn(async () => undefined);
     const env = previewFile();
     await processTick({
       env,
-      manual: true,
       isStopped: () => false,
-      enqueueWeekly,
       leaseOneJob,
       runJob,
       write: () => undefined,
     });
-    expect(enqueueWeekly).not.toHaveBeenCalled();
     expect(runJob).toHaveBeenCalledWith({ id: "job-1", owner: "lease-owner" });
 
-    enqueueWeekly.mockClear();
     await processTick({
       env,
-      manual: false,
       isStopped: () => false,
-      enqueueWeekly,
       leaseOneJob: async () => null,
       runJob,
       write: () => undefined,
     });
-    expect(enqueueWeekly).toHaveBeenCalledOnce();
+    expect(runJob).toHaveBeenCalledOnce();
 
     const lines: string[] = [];
     const stop = bindStop((line) => lines.push(line));
