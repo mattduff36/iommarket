@@ -1,9 +1,8 @@
 import { db } from "@/lib/db";
 import { dealerSyncBlockReason, isEligibleDealer } from "./eligibility";
-import { isFridaySixLondon, londonWeekKey } from "./schedule";
 import type { DealerSyncSubject } from "./types";
 
-type EnqueueClient = Pick<typeof db, "dealerStockSourceBinding" | "dealerStockSyncJob">;
+type EnqueueClient = Pick<typeof db, "dealerStockSyncJob">;
 
 export interface EnqueueBinding {
   id: string;
@@ -14,21 +13,8 @@ export interface EnqueueBinding {
   dealer: DealerSyncSubject;
 }
 
-function subject(dealer: {
-  isAdminPreview: boolean;
-  user: { role: "USER" | "DEALER" | "ADMIN"; disabledAt: Date | null; deletedAt: Date | null };
-}): DealerSyncSubject {
-  return {
-    isAdminPreview: dealer.isAdminPreview,
-    role: dealer.user.role,
-    disabledAt: dealer.user.disabledAt,
-    deletedAt: dealer.user.deletedAt,
-  };
-}
-
-export function canQueueBinding(binding: EnqueueBinding, mode: "weekly" | "ondemand") {
+export function canQueueBinding(binding: EnqueueBinding) {
   if (!binding.verifiedAt) return "unverified";
-  if (mode === "weekly" && !binding.enabled) return "weekly-disabled";
   return dealerSyncBlockReason(binding.dealer);
 }
 
@@ -36,12 +22,11 @@ export async function enqueueScrapeJob(
   client: EnqueueClient,
   input: {
     binding: EnqueueBinding;
-    mode: "weekly" | "ondemand";
     now: Date;
-    createdById: string | null;
+    createdById: string;
   },
 ) {
-  const block = canQueueBinding(input.binding, input.mode);
+  const block = canQueueBinding(input.binding);
   if (block || !isEligibleDealer(input.binding.dealer)) {
     return { status: "skipped" as const, reason: block ?? "ineligible" };
   }
@@ -54,7 +39,6 @@ export async function enqueueScrapeJob(
     select: { id: true },
   });
   if (open) return { status: "exists" as const, jobId: open.id };
-  const weeklyKey = input.mode === "weekly" ? londonWeekKey(input.now) : null;
   try {
     const job = await client.dealerStockSyncJob.create({
       data: {
@@ -62,12 +46,8 @@ export async function enqueueScrapeJob(
         status: "QUEUED",
         bindingId: input.binding.id,
         dealerId: input.binding.dealerId,
-        weeklyKey,
-        idempotencyKey:
-          input.mode === "weekly"
-            ? `weekly:${input.binding.id}:${weeklyKey}`
-            : `ondemand:${input.binding.id}:${input.now.toISOString()}`,
-        payload: { trigger: input.mode, registryKey: input.binding.registryKey },
+        idempotencyKey: `ondemand:${input.binding.id}:${input.now.toISOString()}`,
+        payload: { trigger: "ondemand", registryKey: input.binding.registryKey },
         createdById: input.createdById,
       },
       select: { id: true },
@@ -79,41 +59,6 @@ export async function enqueueScrapeJob(
     }
     throw error;
   }
-}
-
-export async function enqueueDueWeeklyScrapes(now = new Date(), client: EnqueueClient = db) {
-  if (!isFridaySixLondon(now)) {
-    return { due: false, weeklyKey: londonWeekKey(now), queued: 0, skipped: 0 };
-  }
-  const bindings = await client.dealerStockSourceBinding.findMany({
-    where: { enabled: true, verifiedAt: { not: null } },
-    select: {
-      id: true,
-      dealerId: true,
-      registryKey: true,
-      enabled: true,
-      verifiedAt: true,
-      dealer: {
-        select: {
-          isAdminPreview: true,
-          user: { select: { role: true, disabledAt: true, deletedAt: true } },
-        },
-      },
-    },
-  });
-  let queued = 0;
-  let skipped = 0;
-  for (const binding of bindings) {
-    const result = await enqueueScrapeJob(client, {
-      binding: { ...binding, dealer: subject(binding.dealer) },
-      mode: "weekly",
-      now,
-      createdById: null,
-    });
-    if (result.status === "queued") queued += 1;
-    else skipped += 1;
-  }
-  return { due: true, weeklyKey: londonWeekKey(now), queued, skipped };
 }
 
 export async function enqueueApplyJob(

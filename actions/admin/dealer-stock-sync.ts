@@ -120,7 +120,7 @@ export async function setDealerStockBindingEnabled(input: unknown) {
     where: { dealerId: parsed.data.dealerId },
     select: { id: true, verifiedAt: true },
   });
-  if (!binding?.verifiedAt) return { error: "Verify a registry source before enabling weekly sync." };
+  if (!binding?.verifiedAt) return { error: "Verify a registry source before including this dealer in bulk scans." };
   await db.dealerStockSourceBinding.update({
     where: { id: binding.id },
     data: { enabled: parsed.data.enabled },
@@ -169,7 +169,6 @@ export async function enqueueDealerStockScrape(input: unknown) {
         deletedAt: binding.dealer.user.deletedAt,
       },
     },
-    mode: "ondemand",
     now: new Date(),
     createdById: admin.id,
   });
@@ -211,7 +210,6 @@ export async function enqueueEnabledDealerStockScrapes() {
           deletedAt: binding.dealer.user.deletedAt,
         },
       },
-      mode: "ondemand",
       now: new Date(),
       createdById: admin.id,
     });

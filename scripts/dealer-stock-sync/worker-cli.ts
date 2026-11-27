@@ -38,9 +38,7 @@ export function bindStop(write: (line: string) => void) {
 
 export async function processTick(input: {
   env: Record<string, string | undefined>;
-  manual: boolean;
   isStopped: () => boolean;
-  enqueueWeekly: () => Promise<unknown>;
   leaseOneJob: () => Promise<{ id: string; owner: string } | null>;
   runJob: (job: { id: string; owner: string }) => Promise<void>;
   write: (line: string) => void;
@@ -49,8 +47,6 @@ export async function processTick(input: {
   if (input.isStopped()) return false;
   assertWorkerEnabled(input.env);
   await input.authorise?.();
-  if (input.isStopped()) return false;
-  if (!input.manual) await input.enqueueWeekly();
   if (input.isStopped()) return false;
   const job = await input.leaseOneJob();
   if (!job) return false;
@@ -126,7 +122,6 @@ export async function runWorker(
   const { leaseOneJob, runLeasedJob } = await import("./execute-job");
   const { runDealerPipeline } = await import("./pipeline");
   const { getDealer } = await import("./registry");
-  const { enqueueDueWeeklyScrapes } = await import("../../lib/dealer-stock-sync/enqueue");
   const { db } = await import("../../lib/db");
   const write = options.write ?? ((line: string) => { process.stdout.write(line); });
   const stop = bindStop(write);
@@ -149,10 +144,8 @@ export async function runWorker(
       pause: (ms) => pause(ms, isStopped),
       tick: () => processTick({
         env: process.env,
-        manual: mode.manual,
         authorise: options.authorise,
         isStopped,
-        enqueueWeekly: () => enqueueDueWeeklyScrapes(),
         leaseOneJob: () => leaseOneJob(),
         write,
         runJob: async (jobId) => {

@@ -79,7 +79,7 @@ export function StockBindingForm(input: {
         ))}
       </select>
       <p className="max-w-2xl text-sm text-text-secondary">
-        The source is the registry entry you select here. Enabling weekly sync only queues work. Scrapes and approved changes need Stock Update. If it is not connected, you will be asked to open it before work is queued.
+        The source is the registry entry you select here. Include this dealer in bulk scans to select it with “Sync all enabled dealers”. Scrapes and approved changes need Stock Update. If it is not connected, you will be asked to open it before work is queued.
       </p>
       <div className="flex flex-wrap gap-2">
         <button
@@ -97,7 +97,7 @@ export function StockBindingForm(input: {
             run(() => setDealerStockBindingEnabled({ dealerId: input.dealerId, enabled: !input.enabled }))
           }
         >
-          {input.enabled ? "Disable weekly sync" : "Enable weekly sync"}
+          {input.enabled ? "Exclude from bulk scans" : "Include in bulk scans"}
         </button>
         <button
           type="button"

@@ -5,7 +5,6 @@ import { fingerprintSnapshot, type FingerprintSnapshot } from "@/lib/dealer-stoc
 import { chooseLeasableJob, LEASE_JOB_SQL } from "@/lib/dealer-stock-sync/lease";
 import { buildStockSyncPlan } from "@/lib/dealer-stock-sync/plan";
 import { foundingManagedSlug } from "@/lib/dealer-stock-sync/legacy-identity";
-import { isFridaySixLondon, londonWeekKey } from "@/lib/dealer-stock-sync/schedule";
 import { assertWorkerEnabled } from "@/lib/dealer-stock-sync/worker-guard";
 import type { InventoryVehicle, SyncIdentity, SyncListing } from "@/lib/dealer-stock-sync/types";
 
@@ -101,16 +100,6 @@ describe("dealer stock sync rules", () => {
     const result = plan({ vehicles: [vehicle({ importable: false, skipReason: "invalid-price", pricePence: -1 })] });
     expect(result.actions[0]).toMatchObject({ kind: "blocked", reason: "invalid-price" });
     expect(result.patches[0]?.absenceCount).toBe(0);
-  });
-
-  it("enqueues only at Friday 06:00 London for both BST and GMT", () => {
-    expect(isFridaySixLondon(new Date("2026-06-19T05:00:00.000Z"))).toBe(true);
-    expect(isFridaySixLondon(new Date("2026-06-19T06:00:00.000Z"))).toBe(false);
-    expect(isFridaySixLondon(new Date("2026-01-16T06:00:00.000Z"))).toBe(true);
-    expect(isFridaySixLondon(new Date("2026-01-16T05:00:00.000Z"))).toBe(false);
-    expect(londonWeekKey(new Date("2026-06-19T05:00:00.000Z"))).toBe(
-      londonWeekKey(new Date("2026-06-19T06:00:00.000Z")),
-    );
   });
 
   it("fails closed for zero, partial, failed, detail, and pagination uncertainty", () => {

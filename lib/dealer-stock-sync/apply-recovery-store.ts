@@ -54,7 +54,7 @@ async function recoverUnderLock(tx: Prisma.TransactionClient, input: StockRecove
     return { error: "Wait for this dealer's current stock task to finish before recovering the review." };
   }
   if (input.operation === "fresh") {
-    const queued = await enqueueScrapeJob(tx, { binding: { ...binding, dealer: { ...binding.dealer, ...binding.dealer.user } }, mode: "ondemand", now: new Date(), createdById: actorId });
+    const queued = await enqueueScrapeJob(tx, { binding: { ...binding, dealer: { ...binding.dealer, ...binding.dealer.user } }, now: new Date(), createdById: actorId });
     if (queued.status === "skipped" || !queued.jobId) return { error: "The fresh check could not be queued. Refresh and try again." };
     await audit(tx, report.id, actorId, queued.jobId, "fresh-check", report.fingerprint);
     return { data: { jobId: queued.jobId, dealerId: report.dealerId, status: queued.status } };
