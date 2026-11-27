@@ -1,9 +1,17 @@
 "use client";
 import { StockWorkerCommandButton } from "./worker-command-button";
 import styles from "./worker-progress.module.css";
+import { DealerLogo } from "@/components/dealers/dealer-logo";
 import { Check } from "lucide-react";
 import { useStockWorkerControl } from "./worker-context";
 import { useStockDealerSelection, type StockDealer } from "./worker-selection";
+function dealerInitials(name: string) {
+  const words = name.trim().split(/\s+/);
+  const first = words[0] ?? "";
+  if (/^[A-Z&]{2,}$/.test(first)) return first.slice(0, 3);
+  return words.filter(word => /^[A-Z]/.test(word)).slice(0, 2).map(word => word[0]).join("");
+}
+
 export function StockDealerPicker({ dealers, unavailable = [], retainOnDisconnect = false }: { retainOnDisconnect?: boolean; dealers: StockDealer[]; unavailable?: { id: string; name: string; reason: string }[] }) {
   const controls = useStockWorkerControl();
   const selection = useStockDealerSelection();
@@ -18,10 +26,14 @@ export function StockDealerPicker({ dealers, unavailable = [], retainOnDisconnec
     <fieldset disabled={controls.pending || (!controls.online && !controls.requestRun)} className={styles.dealerGrid}>
       <legend className="sr-only">Enabled dealers with a Pro account</legend>
       {dealers.map(dealer => <label key={dealer.id} className="relative cursor-pointer">
-        <input type="checkbox" className="peer sr-only" checked={selection.selected.includes(dealer.id)} onChange={() => selection.toggle(dealer.id)} />
-        <span className="flex min-h-12 items-center gap-3 rounded-lg border border-border bg-surface px-3 py-3 text-sm font-medium text-text-primary transition-colors hover:border-neon-blue-400 peer-checked:border-neon-blue-400 peer-checked:bg-neon-blue-500/10 peer-focus-visible:outline peer-focus-visible:outline-2 peer-focus-visible:outline-offset-2 peer-focus-visible:outline-neon-blue-400 peer-disabled:cursor-not-allowed peer-disabled:opacity-50 motion-reduce:transition-none">
-          <span aria-hidden="true" className={`flex size-5 shrink-0 items-center justify-center rounded-full border ${selection.selected.includes(dealer.id) ? "border-neon-blue-400 bg-neon-blue-600 text-white" : "border-border text-transparent"}`}><Check size={14} strokeWidth={3} /></span>
-          <span className="min-w-0 break-words">{dealer.name}</span>
+        <input type="checkbox" aria-label={dealer.name} className="peer sr-only" checked={selection.selected.includes(dealer.id)} onChange={() => selection.toggle(dealer.id)} />
+        <span className="flex h-full min-h-12 items-center gap-2 rounded-lg border border-border bg-surface px-2.5 py-1 text-text-primary transition-colors hover:border-neon-blue-400 peer-checked:border-neon-blue-400 peer-checked:bg-neon-blue-500/10 peer-focus-visible:outline peer-focus-visible:outline-2 peer-focus-visible:outline-offset-2 peer-focus-visible:outline-neon-blue-400 peer-disabled:cursor-not-allowed peer-disabled:opacity-50 motion-reduce:transition-none">
+          <span aria-hidden="true" className="shrink-0">
+            <DealerLogo dealerName={dealer.name} logoUrl={dealer.logoUrl ?? null} fallbackText={dealerInitials(dealer.name)}
+              className="size-8 rounded-lg border border-white/10 bg-graphite-800 font-heading text-[10px] text-slate-300" imageClassName="p-0.5" />
+          </span>
+          <span className="min-w-0 flex-1 break-words font-heading text-xs leading-[1.25] font-semibold">{dealer.name}</span>
+          <span aria-hidden="true" className={`flex size-4 shrink-0 items-center justify-center rounded-full border ${selection.selected.includes(dealer.id) ? "border-neon-blue-400 bg-neon-blue-600 text-white" : "border-border text-transparent"}`}><Check size={11} strokeWidth={3} /></span>
         </span>
       </label>)}
     </fieldset>

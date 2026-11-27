@@ -169,6 +169,7 @@ export function StockReviewsClient({ initial, query, pairing, offlineStatus, ora
       : !profile.stockSourceBinding.verifiedAt ? "Source awaiting verification" : null,
   }));
   const availableProfiles = classified.filter(profile => !profile.reason);
+  const selectableDealers = availableProfiles.map(({ id, name, logoUrl }) => ({ id, name, logoUrl }));
   const unavailableProfiles = classified.filter(profile => profile.reason).map(profile => ({
     id: profile.id, name: profile.name, reason: profile.reason!,
   }));
@@ -221,8 +222,8 @@ export function StockReviewsClient({ initial, query, pairing, offlineStatus, ora
         className={badge ? "flex-row items-start justify-between sm:items-start" : undefined}
       />
       {pairing}
-      </>} dealers={availableProfiles.map(({ id, name }) => ({ id, name }))} offlineContent={offlineStatus} downloadFallback={snapshot.desktopEnabled ? <DownloadStockWorker /> : null} initialNow={snapshot.now} initial={dashboard} managedSnapshot connectionLost={connectionLost} readyCount={readyCount} jobs={liveJobs}>
-      <StockDealerPicker retainOnDisconnect={connectionLost || oraclePilot} dealers={availableProfiles.map(({ id, name }) => ({ id, name }))} unavailable={unavailableProfiles} />
+      </>} dealers={selectableDealers} offlineContent={offlineStatus} downloadFallback={snapshot.desktopEnabled ? <DownloadStockWorker /> : null} initialNow={snapshot.now} initial={dashboard} managedSnapshot connectionLost={connectionLost} readyCount={readyCount} jobs={liveJobs}>
+      <StockDealerPicker retainOnDisconnect={connectionLost || oraclePilot} dealers={selectableDealers} unavailable={unavailableProfiles} />
       <StockResultHistory entries={shownHistory} view={historyView}>
       <div data-review-layout={wide ? "split" : "accordion"} className={wide && selectedResult ? "grid min-w-0 grid-cols-[minmax(280px,0.8fr)_minmax(0,1.7fr)] items-start gap-5" : "min-w-0"}>
       <div className={wide && selectedResult ? "max-h-[calc(100dvh-8rem)] space-y-5 overflow-y-auto pr-2" : "space-y-5"}>

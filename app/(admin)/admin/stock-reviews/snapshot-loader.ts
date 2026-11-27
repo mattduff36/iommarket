@@ -9,6 +9,11 @@ import { getWorkerDashboard } from "./worker-actions";
 
 const RECENT_LIMIT = 100;
 
+function scrapePageDealer<T extends { name: string }>(dealer: T): T {
+  return dealer.name === "Franklin’s Ltd | Vehicle Sales & Service"
+    ? { ...dealer, name: "Franklin’s Ltd" } : dealer;
+}
+
 const reportSelect = {
   id: true,
   dealerId: true,
@@ -74,7 +79,7 @@ export async function loadStockReviewSnapshot() {
     loadReports(["PENDING_REVIEW", "APPROVED", "SUPERSEDED"]),
     loadReports(["APPLIED", "FAILED", "REJECTED"], RECENT_LIMIT),
     loadJobs(),
-    db.dealerProfile.findMany({ where: { user: { deletedAt: null, role: "DEALER" } }, select: { id: true, name: true, tier: true, isAdminPreview: true, stockSourceBinding: { select: { verifiedAt: true } }, user: { select: { disabledAt: true } } }, orderBy: { name: "asc" } }),
+    db.dealerProfile.findMany({ where: { user: { deletedAt: null, role: "DEALER" } }, select: { id: true, name: true, logoUrl: true, tier: true, isAdminPreview: true, stockSourceBinding: { select: { verifiedAt: true } }, user: { select: { disabledAt: true } } }, orderBy: { name: "asc" } }),
     getWorkerDashboard(),
   ]);
   const legacy = await loadHandoffReports([...outstanding, ...recentReports].map(report => report.id));
@@ -82,11 +87,11 @@ export async function loadStockReviewSnapshot() {
   const enriched = await decorateStockApplyRecovery(await decorateStockDraftReports([...outstanding, ...savedReports]));
   const historyEntries = await loadResultHistory(enriched, jobs);
   const decorated = new Map(enriched.map(report => [report.id, report]));
-  const serializeReport = (report: (typeof enriched)[number]) => ({ ...report, createdAt: report.createdAt.toISOString() });
+  const serializeReport = (report: (typeof enriched)[number]) => ({ ...report, binding: { ...report.binding, dealer: scrapePageDealer(report.binding.dealer) }, createdAt: report.createdAt.toISOString() });
   return {
     outstanding: outstanding.map(report => serializeReport(decorated.get(report.id)!)), recentReports: savedReports.map(report => serializeReport(decorated.get(report.id)!)),
-    jobs: jobs.map(job => ({ ...job, createdAt: job.createdAt.toISOString(), startedAt: job.startedAt?.toISOString() ?? null })),
-    profiles: profiles.map(profile => ({ ...profile, stockSourceBinding: profile.stockSourceBinding ? { verifiedAt: profile.stockSourceBinding.verifiedAt?.toISOString() ?? null } : null, user: { disabledAt: profile.user.disabledAt?.toISOString() ?? null } })),
+    jobs: jobs.map(job => ({ ...job, binding: { ...job.binding, dealer: scrapePageDealer(job.binding.dealer) }, createdAt: job.createdAt.toISOString(), startedAt: job.startedAt?.toISOString() ?? null })),
+    profiles: profiles.map(profile => ({ ...scrapePageDealer(profile), stockSourceBinding: profile.stockSourceBinding ? { verifiedAt: profile.stockSourceBinding.verifiedAt?.toISOString() ?? null } : null, user: { disabledAt: profile.user.disabledAt?.toISOString() ?? null } })),
     dashboard, historyEntries, desktopEnabled: resolveDesktopGate(process.env).ok, now: Date.now(),
   };
 }
