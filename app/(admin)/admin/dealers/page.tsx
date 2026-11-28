@@ -275,6 +275,8 @@ function DealerRow({ dealer, tradeEnabled }: DealerRowProps) {
       subscription.grantEndsAt > now
   );
   const access = paidSubscription ?? adminGrant;
+  const accessLabel = paidSubscription ? "Paid" : adminGrant ? "Free grant" : "No access";
+  const accessColor = paidSubscription ? "text-[#76cc9b]" : adminGrant ? "text-text-secondary" : "text-[#ff8181]";
 
   const accessEnds = access
     ? access.source === "ADMIN_GRANT"
@@ -320,10 +322,8 @@ function DealerRow({ dealer, tradeEnabled }: DealerRowProps) {
         />
       </TableCell>
       <TableCell data-column="plan">
-        <DealerAccountBadge>{getDealerPackageLabel(dealer.tier)}</DealerAccountBadge>
-        <p className="mt-1.5 text-xs text-text-secondary">
-          {access ? (access.source === "ADMIN_GRANT" ? "Free grant" : "Paid") : "No access"}
-        </p>
+        <DealerAccountBadge tier={dealer.tier}>{getDealerPackageLabel(dealer.tier)}</DealerAccountBadge>
+        <p className={`mt-1.5 text-xs ${accessColor}`}>{accessLabel}</p>
         {accessEnds ? <p className="mt-1 text-xs tabular-nums text-text-tertiary">Ends {formatAdminDate(accessEnds)}</p> : null}
       </TableCell>
       <TableCell data-column="details">
@@ -351,7 +351,7 @@ function DealerRow({ dealer, tradeEnabled }: DealerRowProps) {
         {formatAdminDate(dealer.createdAt)}
       </TableCell>
       <TableCell data-column="tier">
-        <DealerAccountBadge>{getDealerPackageLabel(dealer.tier)}</DealerAccountBadge>
+        <DealerAccountBadge tier={dealer.tier}>{getDealerPackageLabel(dealer.tier)}</DealerAccountBadge>
       </TableCell>
       <TableCell data-column="access-ends" className={adminDateCellClass}>
         {formatAdminDate(accessEnds)}
